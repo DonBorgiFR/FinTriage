@@ -801,6 +801,22 @@ tbody tr:hover td { background: var(--bg-card); color: var(--text-primary); }
   color: #fca5a5;
 }
 
+.severity-badge.medium {
+  color: var(--amber, #f59e0b);
+}
+
+.severity-badge.low {
+  color: #6ee7b7;
+}
+
+.form-help-text {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
 .badge-action {
   background: rgba(255,255,255,0.08);
   padding: 3px 8px;

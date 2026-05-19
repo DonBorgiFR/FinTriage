@@ -469,18 +469,44 @@ function renderAnomalies(anomalies) {
   const list = document.getElementById('anomaly-list');
   if (!anomalies.length) { sec.style.display = 'none'; return; }
   sec.style.display = 'block';
+
+  // Calcular contadores
+  const criticalCount = anomalies.filter(a => a.severity === 'critical').length;
+  const highCount = anomalies.filter(a => a.severity === 'high').length;
+  const mediumCount = anomalies.filter(a => a.severity === 'medium').length;
+  const lowCount = anomalies.filter(a => a.severity === 'low').length;
+  const allCount = anomalies.length;
+
+  // Actualizar los textos y contadores en los botones de Ingesta
+  const allBtn = document.querySelector('#anomaly-pills [data-severity="all"]');
+  const criticalBtn = document.querySelector('#anomaly-pills [data-severity="critical"]');
+  const highBtn = document.querySelector('#anomaly-pills [data-severity="high"]');
+  const mediumBtn = document.querySelector('#anomaly-pills [data-severity="medium"]');
+  const lowBtn = document.querySelector('#anomaly-pills [data-severity="low"]');
+
+  if (allBtn) allBtn.textContent = `🔍 Todas (${allCount})`;
+  if (criticalBtn) criticalBtn.textContent = `⛔ Críticas (${criticalCount})`;
+  if (highBtn) highBtn.textContent = `🔴 Altas (${highCount})`;
+  if (mediumBtn) mediumBtn.textContent = `🟡 Medias (${mediumCount})`;
+  if (lowBtn) lowBtn.textContent = `🟢 Bajas (${lowCount})`;
+
+  // Sincronizar pills activas en Ingesta
+  const uploadPills = document.querySelectorAll('#anomaly-pills .pill-btn');
+  uploadPills.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.severity === STATE.ui.anomalyFilter);
+  });
   
-  // Aplicar filtro de severidad (Fase 7)
+  // Aplicar filtro de severidad
   const filtered = anomalies.filter(a => {
     return STATE.ui.anomalyFilter === 'all' || a.severity === STATE.ui.anomalyFilter;
   });
   
   if (!filtered.length) {
-    list.innerHTML = `<div class="anomaly-empty-state">Ninguna anomalía con severidad "${STATE.ui.anomalyFilter}"</div>`;
+    list.innerHTML = `<div class="anomaly-empty-state">Ninguna anomalía con severidad "${STATE.ui.anomalyFilter === 'critical' ? 'Crítica' : STATE.ui.anomalyFilter === 'high' ? 'Alta' : STATE.ui.anomalyFilter === 'medium' ? 'Media' : 'Baja'}"</div>`;
     return;
   }
 
-  // Render detail rows expandibles (Master-Detail, Fase 7)
+  // Render detail rows expandibles
   list.innerHTML = generateAnomaliesHTML(filtered);
   
   // Agregar listeners a las master-rows
@@ -1118,7 +1144,11 @@ const FINDING_RECOMMENDATIONS = {
   'ebitda_suspect':       { impacto: 'Métricas de rentabilidad no fiables.', rec: 'Presentar con disclaimer.', accion: 'Disclaimer', efectoFinanciacion: 'Afecta directamente al cálculo del préstamo ENISA.' },
   'prestamos_socios':     { impacto: 'Riesgo de fuga de capital o descapitalización.', rec: 'Documentar y liquidar si es posible.', accion: 'Préstamo Encubierto', efectoFinanciacion: 'Riesgo alto de rechazo en Due Diligence ENISA.' },
   'deuda_publica_alta':   { impacto: 'Excesiva deuda con Hacienda / Seg. Social.', rec: 'Priorizar liquidación antes de la solicitud.', accion: 'Alerta Pasivo Público', efectoFinanciacion: 'Bloquea la certificación de estar al corriente de pagos.' },
-  'bankability_scaleup':  { impacto: 'La facturación valida un modelo avanzado (>500k).', rec: 'Migrar a BBVA Spark / DayOne + Qonto / Revolut.', accion: 'Diversificación Bancaria', efectoFinanciacion: 'Permite acceder a Venture Debt y financiación Growth.' }
+  'bankability_scaleup':  { impacto: 'La facturación valida un modelo avanzado (>500k).', rec: 'Migrar a BBVA Spark / DayOne + Qonto / Revolut.', accion: 'Diversificación Bancaria', efectoFinanciacion: 'Permite acceder a Venture Debt y financiación Growth.' },
+  'descuadre_contable':   { impacto: 'Asientos descuadrados o diferencias de redondeo.', rec: 'Localizar el origen del descuadre en el diario y re-balancear asientos.', accion: 'Auditar Diario', efectoFinanciacion: 'Los descuadres de alta materialidad invalidan la contabilidad para análisis.' },
+  'meses_sin_amortizacion': { impacto: 'Falta de amortizaciones en meses aislados o periodificación no lineal.', rec: 'Verificar si falta la cuota o si es criterio de cierre anual/trimestral.', accion: 'Conciliar PGC 68', efectoFinanciacion: 'Genera dudas técnicas de periodificación en auditoría.' },
+  'variacion_brusca_ingresos': { impacto: 'Desviación mensual alta (>40%) en ingresos.', rec: 'Analizar estacionalidad o si hay facturas acumuladas erróneamente.', accion: 'Verificar Ventas', efectoFinanciacion: 'Cuestiona la estabilidad del MRR o facturación recurrente.' },
+  'cuenta_129_detectada': { impacto: 'Presencia de cuenta 129 fuera de los meses de regularización o apertura.', rec: 'Ajustar apuntes intermedios para que vayan a cuentas de PyG del ejercicio.', accion: 'Ajustar Regulariz.', efectoFinanciacion: 'El uso disperso distorsiona los informes mensuales de pérdidas y ganancias.' }
 };
 
 function generateActionableFindingsHTML(actionable) {
@@ -1141,8 +1171,19 @@ function generateActionableFindingsHTML(actionable) {
   actionable.forEach((a) => {
     const ruleId = a.id;
     const rec = FINDING_RECOMMENDATIONS[ruleId] || { impacto: a.detail, efectoFinanciacion: 'Deteriora la credibilidad del análisis.', accion: 'Investigar', rec: 'Auditar la partida contable correspondiente.' };
-    const sevIcon = a.severity === 'critical' ? '⛔' : '🔴';
-    const sevLabel = a.severity === 'critical' ? 'Crítica' : 'Alta';
+    
+    let sevIcon = '🟢';
+    let sevLabel = 'Baja';
+    if (a.severity === 'critical') {
+      sevIcon = '⛔';
+      sevLabel = 'Crítica';
+    } else if (a.severity === 'high') {
+      sevIcon = '🔴';
+      sevLabel = 'Alta';
+    } else if (a.severity === 'medium') {
+      sevIcon = '🟡';
+      sevLabel = 'Media';
+    }
     
     const compositeKey = 'dash_' + getAnomalyContextKey(a);
     const isExpanded = STATE.ui.expandedAnomalies.includes(compositeKey);
@@ -1213,16 +1254,46 @@ function renderActionableFindings() {
   if (!section || !content || !STATE.analysisResult) return;
 
   const anomalies = STATE.analysisResult.anomalies || [];
-  let actionable = anomalies.filter(a => a.severity === 'high' || a.severity === 'critical');
   
+  // Calcular contadores por severidad
+  const criticalCount = anomalies.filter(a => a.severity === 'critical').length;
+  const highCount = anomalies.filter(a => a.severity === 'high').length;
+  const mediumCount = anomalies.filter(a => a.severity === 'medium').length;
+  const lowCount = anomalies.filter(a => a.severity === 'low').length;
+  const allSevereCount = criticalCount + highCount + mediumCount;
+
+  // Actualizar título del panel en Dashboard
+  const cardTitle = document.querySelector('#actionable-findings-section .card-title');
+  if (cardTitle) {
+    cardTitle.textContent = `🚨 Hallazgos Accionables (${allSevereCount})`;
+  }
+
   // Sincronizar pills activas en Dashboard
   const dashboardPills = document.querySelectorAll('#dashboard-anomaly-pills .pill-btn');
   dashboardPills.forEach(btn => {
     btn.classList.toggle('active', btn.dataset.severity === STATE.ui.anomalyFilter);
   });
-  
-  if (STATE.ui.anomalyFilter !== 'all') {
-    actionable = actionable.filter(a => a.severity === STATE.ui.anomalyFilter);
+
+  // Actualizar los textos y contadores en los botones del Dashboard
+  const allBtn = document.querySelector('#dashboard-anomaly-pills [data-severity="all"]');
+  const criticalBtn = document.querySelector('#dashboard-anomaly-pills [data-severity="critical"]');
+  const highBtn = document.querySelector('#dashboard-anomaly-pills [data-severity="high"]');
+  const mediumBtn = document.querySelector('#dashboard-anomaly-pills [data-severity="medium"]');
+  const lowBtn = document.querySelector('#dashboard-anomaly-pills [data-severity="low"]');
+
+  if (allBtn) allBtn.textContent = `🔍 Todas (${allSevereCount})`;
+  if (criticalBtn) criticalBtn.textContent = `⛔ Críticas (${criticalCount})`;
+  if (highBtn) highBtn.textContent = `🔴 Altas (${highCount})`;
+  if (mediumBtn) mediumBtn.textContent = `🟡 Medias (${mediumCount})`;
+  if (lowBtn) lowBtn.textContent = `🟢 Bajas (${lowCount})`;
+
+  // Filtrar el listado según el filtro seleccionado
+  let actionable;
+  if (STATE.ui.anomalyFilter === 'all') {
+    // Por defecto (Todas) mostramos críticas + altas + medias
+    actionable = anomalies.filter(a => a.severity === 'critical' || a.severity === 'high' || a.severity === 'medium');
+  } else {
+    actionable = anomalies.filter(a => a.severity === STATE.ui.anomalyFilter);
   }
 
   if (!actionable.length) {
@@ -1230,7 +1301,7 @@ function renderActionableFindings() {
       section.style.display = 'none';
     } else {
       section.style.display = 'block';
-      content.innerHTML = `<div class="findings-empty-state">No hay hallazgos accionables con severidad "${STATE.ui.anomalyFilter}"</div>`;
+      content.innerHTML = `<div class="findings-empty-state">No hay hallazgos accionables con severidad "${STATE.ui.anomalyFilter === 'critical' ? 'Crítica' : STATE.ui.anomalyFilter === 'high' ? 'Alta' : STATE.ui.anomalyFilter === 'medium' ? 'Media' : 'Baja'}"</div>`;
     }
     return;
   }

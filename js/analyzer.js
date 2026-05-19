@@ -619,9 +619,13 @@ function getConfidenceMeta(baseTrustScore, anomalies, ebitdaSuspect, contextChec
   const cfg = CONFIDENCE_LEVELS[confidenceLevel];
 
   // ── 5. Limitaciones derivadas de anomalías técnicas ──
-  const highCritical = anomalies.filter(a => a.severity === 'high' || a.severity === 'critical');
-  if (highCritical.length > 0) {
-    analysisLimitations.push(`${highCritical.length} anomalía(s) grave(s) detectada(s) en el libro contable.`);
+  const critical = anomalies.filter(a => a.severity === 'critical').length;
+  const high = anomalies.filter(a => a.severity === 'high').length;
+  const medium = anomalies.filter(a => a.severity === 'medium').length;
+  const low = anomalies.filter(a => a.severity === 'low').length;
+  if (critical > 0 || high > 0 || medium > 0) {
+    const severeText = `Se han detectado ${critical} críticas, ${high} altas y ${medium} medias. Además, existen ${low} incidencias leves de carácter informativo.`;
+    analysisLimitations.push(severeText);
   }
   if (ebitdaSuspect) {
     analysisLimitations.push('Las conclusiones de rentabilidad (EBITDA, márgenes) están condicionadas por incidencias relevantes.');

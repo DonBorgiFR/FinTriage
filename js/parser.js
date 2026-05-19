@@ -339,7 +339,7 @@ function detectAnomalies(entries, byMonth) {
         severity: 'low',
         month: mesesCon129.join(', '),
         message: 'Uso estructurado de la cuenta 129 (regularización/apertura)',
-        detail: `Apuntes en la cuenta 129 detectados exclusivamente en meses estándar de apertura (${firstMonth}) y/o regularización (${lastMonth}). Uso estructurado conforme.`
+        detail: `Apuntes en la cuenta 129 detectados exclusivamente en meses estándar de apertura (${firstMonth}) y/o regularización (${lastMonth}). Uso estructurado compatible con apertura/regularización.`
       });
     } else {
       // Determinar la severidad basada en el importe máximo de los apuntes intermedios

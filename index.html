@@ -207,52 +207,58 @@
         <div class="card">
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
             <div class="form-group">
-              <label for="ctx-coveragePeriod">Cobertura del Periodo</label>
+              <label for="ctx-coveragePeriod">¿El libro cubre todo el periodo esperado?</label>
               <select id="ctx-coveragePeriod">
                 <option value="complete">Completo (12 meses o hasta fecha actual)</option>
                 <option value="missing_months">Faltan meses intermedios</option>
                 <option value="unsure">No estoy seguro</option>
               </select>
+              <p class="form-help-text">Indica si dispones de la serie histórica mensual continua. Los meses que falten reducirán significativamente la confianza del análisis predictivo.</p>
             </div>
             <div class="form-group">
-              <label for="ctx-closeStatus">Estado del Cierre</label>
+              <label for="ctx-closeStatus">¿En qué estado está la contabilidad de este libro?</label>
               <select id="ctx-closeStatus">
                 <option value="final_close">Cierre definitivo</option>
                 <option value="preclose">Precierre (ajustes pendientes)</option>
                 <option value="draft">Borrador / Volcado en bruto</option>
               </select>
+              <p class="form-help-text">El estado borrador aplica un ajuste preventivo a la fiabilidad. Un cierre definitivo consolida la estabilidad de la PyG.</p>
             </div>
             <div class="form-group">
-              <label for="ctx-externalReview">Revisión Externa</label>
+              <label for="ctx-externalReview">¿Alguien ha revisado este libro?</label>
               <select id="ctx-externalReview">
                 <option value="external">Auditado externamente</option>
                 <option value="internal">Revisión interna CFO</option>
                 <option value="none">Sin revisión previa</option>
               </select>
+              <p class="form-help-text">La auditoría o validación por un tercero certificado mitiga el riesgo y aumenta la solvencia de cara al scoring.</p>
             </div>
             <div class="form-group">
-              <label for="ctx-bridgeAccounts">Cuentas Puente (555, etc.)</label>
+              <label for="ctx-bridgeAccounts">¿Hay muchos movimientos en cuentas puente como la 555?</label>
               <select id="ctx-bridgeAccounts">
                 <option value="none">Sin saldo o irrelevante</option>
                 <option value="moderate">Saldo moderado, controlado</option>
                 <option value="high">Saldo elevado, descontrolado</option>
               </select>
+              <p class="form-help-text">Saldos elevados y sin asignar (como en la 555) representan partidas sin conciliar, reduciendo el score de auditoría.</p>
             </div>
             <div class="form-group">
-              <label for="ctx-reconciliationIssues">Problemas de Conciliación</label>
+              <label for="ctx-reconciliationIssues">¿El libro cuadra con bancos/impuestos?</label>
               <select id="ctx-reconciliationIssues">
                 <option value="none">Ninguno / Cuadrado</option>
                 <option value="minor">Diferencias menores</option>
                 <option value="high">Descuadres importantes detectados</option>
               </select>
+              <p class="form-help-text">Indica si existen discrepancias entre el diario y los extractos reales. Los descuadres desbalancean el modelo de caja.</p>
             </div>
             <div class="form-group">
-              <label for="ctx-publicDebtRisk">Riesgo Deuda Pública</label>
+              <label for="ctx-publicDebtRisk">¿Cómo está la situación con Hacienda y Seguridad Social?</label>
               <select id="ctx-publicDebtRisk">
                 <option value="none">Al corriente / Sin deuda</option>
                 <option value="controlled">Deuda aplazada aprobada</option>
                 <option value="delicate">Embargos o atrasos críticos</option>
               </select>
+              <p class="form-help-text">Los aplazamientos controlados o deudas en mora con entes públicos restan elegibilidad para avales y préstamos institucionales (ENISA/CDTI).</p>
             </div>
           </div>
           
