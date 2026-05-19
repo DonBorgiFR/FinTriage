@@ -100,7 +100,15 @@ Para verificar la correcta operatividad del módulo Cartera:
 3.  **Ficha Handoff**: Haz clic en el botón de portapapeles `📋` en cualquier fila de la tabla y pega el texto en un editor; confirma que muestra los datos de triage exactos.
 4.  **Transición Limpia**: Haz clic en *"Analizar"* `➜` en una startup de la cartera y comprueba que se rehidrata el Dashboard completo con sus datos específicos.
 
-*(Para un detalle minucioso de las pruebas de aceptación, consulte la guía en [docs/manual_validation.md](file:///c:/Users/borja/OneDrive/Documentos/Antigravity/APTKI/workstation/docs/manual_validation.md)).*
+---
+
+## 8. Documentación de Referencia
+
+El repositorio cuenta con las siguientes guías de referencia técnica y operativa:
+*   **[Guía de Uso Operativa](file:///c:/Users/borja/OneDrive/Documentos/Antigravity/APTKI/workstation/docs/user_guide.md)** — Manual práctico para consultores en contexto de trabajo real con startups.
+*   **[Protocolo de Validación Manual](file:///c:/Users/borja/OneDrive/Documentos/Antigravity/APTKI/workstation/docs/manual_validation.md)** — Los 5 Test Cases detallados paso a paso para la verificación del sistema.
+*   **[Especificación de Arquitectura](file:///c:/Users/borja/OneDrive/Documentos/Antigravity/APTKI/workstation/docs/architecture.md)** — Estructura de flujos, reactividad de deep proxy, audit trail y reglas del motor.
+*   **[Especificación del Formato .aptki](file:///c:/Users/borja/OneDrive/Documentos/Antigravity/APTKI/workstation/docs/session_format.md)** — Estructura de datos JSON unificados para persistencia dual.
 
 ---
 
