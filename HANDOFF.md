@@ -1,7 +1,7 @@
 # 💾 APTKI Workstation - Estado de Guardado (Handoff)
 
 ## 1. Estado Actual (State of the Union)
-- **Consolidación del Core Analítico:** La Workstation es funcional, capaz de procesar un libro diario (PGC), clasificar cuentas, aplicar ajustes de devengo, y generar un dashboard financiero completo in-browser con arquitectura SPA.
+- **Consolidación del Core Analítico:** La Workstation es plenamente funcional, capaz de procesar un libro diario (PGC), clasificar cuentas, aplicar ajustes de devengo, y generar un dashboard financiero completo in-browser con arquitectura SPA.
 - **Contexto Humano y Trust Score (Fases 1 a 4):** Se integró exitosamente el formulario de "Contexto Contable" permitiendo al analista influir determinísticamente en el *Confidence Engine* sin romper la inmutabilidad de los datos algorítmicos.
 - **Agentic Export (Fase 5):** Funcionalidad pionera implementada. El sistema exporta la *State of the Union* financiera (KPIs, Anomalías, Trust Score) en un payload markdown ultradenso al portapapeles, optimizado para el consumo inmediato por parte de LLMs (Claude, ChatGPT).
 - **Sentido de Negocio Avanzado (Fase 6):**
@@ -13,30 +13,36 @@
   - **Arquitectura Reactiva (State Wrapping):** Implementado `store.js` con un ES6 *Deep Proxy* y un bus de eventos (Observer / PubSub). Toda la SPA es ahora puramente reactiva a los cambios de estado sin necesidad de mutaciones manuales ni acoplamientos espagueti en la vista.
   - **Diseño Dark Glassmorphism (Fase 3 UI):** Interfaz premium utilizando `backdrop-filter: blur`, gradientes profundos, bordes sutiles y micro-animaciones para proyectar autoridad institucional.
 
-## 2. Archivos Clave Modificados Recientemente
-- `index.html`: Estructura SPA y UI general.
-- `js/app.js`: Orquestador principal (navegación, inyección de estado, renderizado visual de alertas `FINDING_RECOMMENDATIONS`).
-- `js/analyzer.js`: Core matemático inmutable y motor de evaluación de anomalías algorítmicas/negocio.
-- `js/checklist.js`: Factoría del Filtro Día 1 dinámico.
-- `js/exporter.js`: Modulo de exportación (PDF, Excel interactivo y Agentic Clipboard).
-- `DATA_CONTRACT.md`: Definición estricta de estructuras como `STATE.contextChecklist`.
-- `implementation_plan_fase6.md`: Blueprint histórico de la última fase completada.
+## 2. Robustez de Fase 7 (Micro Sprint de Calidad)
+- **DSO/DPO Real Restaurado:** Se corrigió el bug de cálculo real. Se implementó una agregación robusta por prefijo contable (`43` para deudores, `40` para acreedores) sobre el mapa de subcuentas consolidado, invirtiendo el signo para clientes (saldo deudor) para adecuarse a la convención `haber - debe` de `analyzer.js`.
+- **Defensa Blindada (Null-Safety):** Se blindó `defensa.js` de extremo a extremo mediante encadenamiento opcional (`?.`) y coalescencia nula (`??`) en todos sus consumos de datos (`data.totales`, `data.balance`, `data.anomalies`, `data.pygMensual`), eliminando errores al transicionar entre vistas o al cargar estructuras parciales.
+- **Copiado de Informes Universal:** Se eliminó la dependencia exclusiva de `navigator.clipboard`. Ahora se cuenta con un fallback transparente basado en `<textarea>` temporal inyectado en el DOM y ejecución de `document.execCommand('copy')`. Esto garantiza la funcionalidad en navegadores sin HTTPS o con permisos restringidos.
+- **Limpieza de Código:** Se eliminó la referencia muerta a `UNIVERSAL_KPIS` en el cálculo de DSO/DPO, simplificando la mantenibilidad técnica.
 
-## 3. Backlog Abierto (Siguiente Objetivo)
-El sistema ha alcanzado una madurez técnica y visual de grado institucional tras la Fase de Refinamiento.
-- **Fase 7 (Módulo de Defensa):** Iniciar la arquitectura de narrativas ejecutivas y argumentarios de defensa para la financiación basándonos en la "Masterclass CFO". Este es el próximo paso inmediato.
+## 3. Archivos Clave Modificados Recientemente
+## 3. Fase 8: Módulo de Cartera (Priorización y Routing)
+- **Dashboard de Cartera Multicompañía:** Vista agregada para gestionar 3 o 4 startups simultáneamente en estado vivo mediante importación individual o por lotes de archivos `.aptki`.
+- **Clasificador de Gravedad y Urgencias:** Semáforo de urgencia de caja y balance cruzando runway, anomalías críticas de Due Diligence, y nivel de conciliación contable en un Score determinista (0-100).
+- **Clasificador de Focos Operativos:** Determina si el problema principal radica en Caja (Runway), Circulante (DSO/DPO), Costes, Financiabilidad, Deuda Pública (Hacienda/SS) o "Materiales y caso financiero" (sustituyendo el concepto abstracto de "Narrativa").
+- **Routing de Equipos en 3 Niveles:** Diagnóstico tridimensional que desglosa Foco Principal ──> Bloqueador Previo Activo (Trust contable, Hacienda/SS, Socios/DD) ──> Ruta Sugerida Final (CFO, Gestoría, Fin. Bancaria, Fin. Pública, Fundraising).
+- **Persistencia Consolidada Compatible:** Soporte de persistencia en `.aptki` con formato `"mode": "portfolio"` que unifica en memoria toda la cartera y permite exportar e importar de forma consolidada, manteniendo la retrocompatibilidad absoluta con sesiones individuales.
 
-## 4. 🔑 Golden Prompt de Reenganche
+## 4. Archivos Clave Modificados/Creados
+- `index.html`: Estructura SPA y UI general. Agregado botón de navegación y la sección `#section-cartera` que aloja la dropzone de carga en lote, tarjetas de KPIs, tabla ejecutiva de control y bloque de Handoff Express.
+- `js/app.js`: Orquestador principal (navegación, alertas reactivas y parpadeo de runway). Integrada la navegación condicional para la pestaña de Cartera.
+- `js/defensa.js`: El núcleo de inteligencia de supervivencia, cálculo real robusto de DSO/DPO, leaks, talking points, plan de choque interactivo y fallback universal de portapapeles.
+- `js/session.js`: Persistencia automática del plan de choque interactivo y simulaciones de caja rápida en el archivo de sesión `.aptki`. Reescritas las funciones de guardado y carga para actuar de forma dual (single vs portfolio), con batch drag-and-drop e importadores dedicados.
+- `js/store.js`: Definición de estados globales reactivos. Extendidas las claves reactivas `cartera`, `carteraActiveStartup` y `carteraMode` en el Proxy profundo de estado.
+- `js/cartera.js`: **Creado desde cero.** Contiene el motor lógico determinista de triage, cálculo de elegibilidad ENISA, renderizadores de DOM dinámicos, ficha de handoff express y fallback de copiado robusto.
+- `css/index.css`: Inyectados estilos para badges sutiles HSL, dropzones interactivas y efectos de selección en la tabla.
+
+## 5. 🔑 Golden Prompt de Reenganche
 
 ```markdown
-Hola, Antigravity. Retomamos el proyecto APTKI Workstation asumiendo el rol de Design Lead y Full-Stack Engineer experto en SPA sin frameworks. 
+Hola, Antigravity. Retomamos el proyecto APTKI Workstation asumiendo el rol de Design Lead y Full-Stack Engineer experto en SPA sin frameworks.
 
 ### CONTEXTO DEL PROYECTO
-Estamos construyendo una plataforma web "Agentic-First" puramente local (in-browser) para consultores financieros APTKI.
+La workstation está en un estado excelente de robustez y madurez operativa. El Módulo de Cartera (Fase 8) se encuentra plenamente integrado en el ecosistema, permitiendo un control unificado y determinista de múltiples startups, routing por equipos (CFO, Gestoría, Financiación Bancaria/Pública, Fundraising), bloqueadores cruzados y ficha de handoff express con copiado seguro.
 
-Recientemente hemos completado la **Fase de Refinamiento**, donde hemos blindado la ingesta de datos (`parser.js` con tolerancia a negativos y época Excel), implementado un motor reactivo de estado global con Proxy profundo (`store.js`) e inyectado una estética premium (Dark Glassmorphism). La arquitectura técnica es sólida.
-
-### MISIÓN ACTUAL
-Nuestro único y absoluto objetivo para esta sesión es abordar la **Fase 7: Construir el Módulo de Defensa CFO**.
-Por favor, asimila el plan de esta fase y propón la arquitectura del módulo `defensa.js` para generar los talking points y preparar al emprendedor ante comités de riesgo. NO generes código hasta que yo apruebe la estructura funcional.
+Léete el archivo `HANDOFF.md` para asimilar el core técnico antes de empezar.
 ```

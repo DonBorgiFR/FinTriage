@@ -32,7 +32,10 @@ class ReactiveStore {
         
         // Si el nuevo valor inyectado es un objeto o array, lo envolvemos recursivamente
         // Esto asegura que mutaciones profundas (ej: STATE.empresa.nombre = 'X') sigan siendo reactivas
-        const newValue = (value !== null && typeof value === 'object') 
+        // Solo envolvemos objetos planos y arrays para no romper instancias nativas (ej. File, Date)
+        const isMappable = value !== null && typeof value === 'object' && 
+                           (Array.isArray(value) || value.constructor === Object);
+        const newValue = isMappable 
           ? this._createDeepProxy(value, callback) 
           : value;
 
@@ -56,8 +59,11 @@ class ReactiveStore {
 
     // Recursividad inicial: envolvemos los objetos anidados presentes en el initialState
     for (let key in target) {
-      if (target[key] !== null && typeof target[key] === 'object') {
-        target[key] = this._createDeepProxy(target[key], callback);
+      const value = target[key];
+      const isMappable = value !== null && typeof value === 'object' && 
+                         (Array.isArray(value) || value.constructor === Object);
+      if (isMappable) {
+        target[key] = this._createDeepProxy(value, callback);
       }
     }
 
@@ -121,7 +127,12 @@ const initialDataContract = {
   contextChecklist: null,
   accrualsReviewed: false,
   accrualCandidates: [],
-  approvedAccruals: []
+  approvedAccruals: [],
+  defensaPlanChoqueChecked: [],
+  defensaSimulacionInputs: null,
+  cartera: [],
+  carteraActiveStartup: null,
+  carteraMode: false
 };
 
 // ==========================================

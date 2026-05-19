@@ -563,3 +563,61 @@ tbody tr:hover td { background: var(--bg-card); color: var(--text-primary); }
   50% { transform: scale(1.02); }
   100% { transform: scale(1); }
 }
+
+/* ==========================================
+   Fase 8: Módulo de Cartera (Priorización)
+   ========================================== */
+.dropzone-mini {
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.dropzone-mini:hover, .dropzone-mini.drag-over {
+  border-color: var(--purple) !important;
+  background: rgba(168, 85, 247, 0.08) !important;
+}
+.badge-prioridad {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+.badge-prioridad.roja {
+  background: hsla(0, 84%, 60%, 0.15);
+  color: hsl(0, 84%, 70%);
+  border: 1px solid hsla(0, 84%, 60%, 0.25);
+}
+.badge-prioridad.amarilla {
+  background: hsla(45, 93%, 47%, 0.15);
+  color: hsl(45, 93%, 65%);
+  border: 1px solid hsla(45, 93%, 47%, 0.25);
+}
+.badge-prioridad.verde {
+  background: hsla(142, 70%, 45%, 0.15);
+  color: hsl(142, 70%, 65%);
+  border: 1px solid hsla(142, 70%, 45%, 0.25);
+}
+.cartera-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.cartera-row:hover {
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+.cartera-row.selected {
+  background: rgba(168, 85, 247, 0.06) !important;
+  box-shadow: inset 3px 0 0 var(--purple);
+}
+.btn-danger-light {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+.btn-danger-light:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fee2e2;
+  border-color: rgba(239, 68, 68, 0.3);
+}

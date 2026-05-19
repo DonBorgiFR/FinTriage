@@ -21,6 +21,44 @@ appStore.subscribe('parsedLedger', (parsed) => {
   }
 });
 
+// Alerta reactiva en el menú de Defensa por Runway crítico (Libro Diario Real)
+appStore.subscribe('analysisResult', (result) => {
+  const navDefensa = document.getElementById('nav-defensa');
+  if (!navDefensa) return;
+
+  if (result && result.totales && result.totales.burnRateNeto > 0) {
+    const runway = result.totales.cajaFinal / result.totales.burnRateNeto;
+    if (runway < 3) {
+      navDefensa.classList.add('pulse-danger');
+      showToast('⚠️ Startup en Runway Crítico (< 3 meses). Se ha activado el Plan de Choque de 100 Días en la pestaña Defensa.', 'error', 6000);
+      return;
+    }
+  }
+  navDefensa.classList.remove('pulse-danger');
+});
+
+// Alerta reactiva en el menú de Defensa por Runway crítico (Datos Simulados)
+appStore.subscribe('defensaSimulacionInputs', (inputs) => {
+  const navDefensa = document.getElementById('nav-defensa');
+  if (!navDefensa) return;
+
+  if (inputs) {
+    const burn = Math.max(0, inputs.gastos - inputs.ingresos);
+    if (burn > 0 && (inputs.caja / burn) < 3) {
+      navDefensa.classList.add('pulse-danger');
+      showToast('⚠️ Simulación: Runway Crítico (< 3 meses). Plan de Choque generado en la pestaña Defensa.', 'error', 5000);
+      return;
+    }
+  }
+  
+  // Si hay análisis real con runway crítico, lo dejamos activo
+  if (STATE.analysisResult && STATE.analysisResult.totales && STATE.analysisResult.totales.burnRateNeto > 0) {
+    const runway = STATE.analysisResult.totales.cajaFinal / STATE.analysisResult.totales.burnRateNeto;
+    if (runway < 3) return;
+  }
+  navDefensa.classList.remove('pulse-danger');
+});
+
 /** Registro de evento en Audit Trail */
 function logAudit(action, detail = '') {
   STATE.auditTrail.push({
@@ -79,6 +117,7 @@ function navigate(sectionId) {
   if (sectionId === 'scoring') renderScorer();
   if (sectionId === 'forecast') renderForecast();
   if (sectionId === 'defensa') renderDefensa();
+  if (sectionId === 'cartera') renderCarteraTab();
 }
 
 document.querySelectorAll('.nav-item').forEach(btn => {
@@ -711,75 +750,7 @@ function renderPyG(pygMensual) {
   }).join('');
 }
 
-// ---- Render: Defensa ----
-/**
- * renderDefensa()
- * @description Renderiza la pestaña "Defensa Board", proporcionando al CFO preguntas de entrenamiento 
- * basadas en debilidades comunes de los modelos de negocio.
- * @returns {void}
- */
-function renderDefensa() {
-  const root = document.getElementById('defensa-root');
-  const preguntas = [
-    {
-      pregunta: '¿Por qué recomendáis ENISA Emprendedores y no ENISA Crecimiento?',
-      respuesta: 'ENISA Crecimiento exige más de 2 ejercicios fiscales cerrados y evolución positiva de fondos propios en los dos últimos. Una empresa con menos de 24 meses solo tiene un ejercicio cerrado. Además, con burn rate elevado, los fondos propios de 2025 estarán mermados hasta que entre la ronda puente. ENISA Emprendedores financia hasta 300.000€ en proporción 1:1 y es la línea correcta para empresas en primeras fases.'
-    },
-    {
-      pregunta: '¿Cómo calculáis el Runway con un burn rate variable?',
-      respuesta: 'Usamos el burn rate neto promedio de los últimos 3 meses (no del total histórico) para reflejar la tendencia reciente. Runway = Caja Disponible / Burn Rate Neto Promedio mensual. Si el burn está acelerándose, lo indicamos con una alerta roja antes de los 6 meses.'
-    },
-    {
-      pregunta: '¿Cómo justificáis las amortizaciones faltantes?',
-      respuesta: 'Al detectar meses sin amortización donde otros sí la registran, se documenta como ajuste contable. En el cierre analítico se periodifica la amortización correctamente según el cuadro de inmovilizado (activos × tasa lineal). Esto se anota en la pestaña de "Ajustes y Errores Detectados" del entregable.'
-    },
-    {
-      pregunta: '¿Qué diferencia hay entre el EBITDA operativo y el resultado neto?',
-      respuesta: 'El EBITDA excluye amortizaciones (que no son salida de caja) e intereses y impuestos. Mide la rentabilidad operativa pura del negocio. El resultado neto incluye todos esos conceptos. Para una startup con préstamos ENISA, la diferencia entre EBITDA y resultado neto es precisamente los intereses del préstamo participativo.'
-    },
-    {
-      pregunta: '¿Por qué el Burn Multiple es la métrica clave y no solo el Burn Rate?',
-      respuesta: 'El Burn Rate solo dice cuánto se gasta. El Burn Multiple (Net Burn / New ARR) dice cuánto cuesta cada euro de nuevo crecimiento. Un Burn Multiple > 2x indica ineficiencia estructural: la empresa gasta más de 2€ para generar 1€ de nuevo ingreso recurrente. Para un inversor o un banco, esta es la métrica que determina si el negocio es escalable o no.'
-    },
-    {
-      pregunta: '¿Qué bonificaciones de SS aplican para una startup tech?',
-      respuesta: 'Bonificación del 40% de contingencias comunes (≈23,6% del salario bruto) para personal investigador dedicado al 100% a I+D+i, grupos de cotización 1 a 4. Compatible con deducciones fiscales por I+D si se tiene el sello Pyme Innovadora. Requiere Informe Motivado si aplica a 10 o más trabajadores. Ahorro estimado: 1.500-2.500€/mes para una plantilla tech de 5-8 personas.'
-    }
-  ];
-
-  const data = STATE.analysisResult;
-  const memoriaRapida = data ? `
-    <div class="card" style="margin-bottom:24px;">
-      <div class="card-title">⚡ Datos de Memoria Rápida — Último Análisis</div>
-      <div class="kpi-grid" style="margin-top:0;">
-        <div class="kpi-card"><div class="kpi-label">Empresa</div><div class="kpi-value" style="font-size:1rem;">${STATE.empresa.nombre || '—'}</div></div>
-        <div class="kpi-card"><div class="kpi-label">Caja Final</div><div class="kpi-value">${new Intl.NumberFormat('es-ES',{maximumFractionDigits:0}).format(data.totales.cajaFinal)}€</div></div>
-        <div class="kpi-card"><div class="kpi-label">Burn Rate Neto/mes</div><div class="kpi-value">${new Intl.NumberFormat('es-ES',{maximumFractionDigits:0}).format(data.totales.burnRateNeto)}€</div></div>
-        <div class="kpi-card"><div class="kpi-label">EBITDA Total</div><div class="kpi-value">${new Intl.NumberFormat('es-ES',{maximumFractionDigits:0}).format(data.totales.ebitda)}€</div></div>
-      </div>
-    </div>
-  ` : '';
-
-  root.innerHTML = memoriaRapida + `
-    <div class="card">
-      <div class="card-title">🎯 Preguntas Trampa — Acordeón de Práctica</div>
-      <p style="font-size:0.83rem;color:var(--text-muted);margin-bottom:16px;">Haz clic en cada pregunta para ver la respuesta. Practica respondiendo antes de revelarla.</p>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        ${preguntas.map((p, i) => `
-          <details style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;">
-            <summary style="cursor:pointer;font-weight:600;color:var(--text-primary);font-size:0.9rem;list-style:none;display:flex;justify-content:space-between;align-items:center;">
-              ${p.pregunta}
-              <span style="color:var(--cyan);font-size:0.75rem;flex-shrink:0;margin-left:12px;">ver respuesta ▸</span>
-            </summary>
-            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);color:var(--text-secondary);font-size:0.87rem;line-height:1.7;">
-              ${p.respuesta}
-            </div>
-          </details>
-        `).join('')}
-      </div>
-    </div>
-  `;
-}
+// Las funciones y UI del CFO Defense & Survival Cockpit han sido delegadas al módulo especializado js/defensa.js
 
 // ---- Render: Waterfall Chart ----
 /**

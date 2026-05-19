@@ -1,24 +1,29 @@
 /**
- * session.js — Gestor de persistencia de sesiones (.aptki)
- * Permite guardar y cargar el estado completo del análisis.
+ * session.js — Gestor de persistencia de sesiones (.aptki) con Soporte Dual de Cartera
+ * Permite guardar y cargar sesiones individuales y carteras multi-empresa consolidadas.
  */
 
 /**
  * exportSession()
- * @description Empaqueta el estado global de la aplicación (STATE) en un archivo JSON descargable 
- * con la extensión `.aptki`. Esto permite la persistencia de datos 100% local sin necesidad de backend.
- * @returns {void} Inicia la descarga del archivo `.aptki` a través del navegador.
+ * @description Empaqueta el estado de la aplicación. Si STATE.carteraMode está activo,
+ * genera una sesión de cartera unificada. Si está en modo individual, genera una sesión estándar.
  */
 function exportSession() {
+  if (STATE.carteraMode) {
+    exportPortfolioSession();
+    return;
+  }
+
   if (!STATE.analysisResult && !STATE.parsedLedger) {
     showToast('No hay datos para guardar', 'error');
     return;
   }
 
-  // Clonamos el estado para limpiarlo de cosas que no queremos guardar (como archivos crudos)
+  // Clonamos el estado para guardarlo de forma limpia
   const sessionData = {
     version: '1.2',
     timestamp: new Date().toISOString(),
+    mode: 'single',
     parsedLedger: STATE.parsedLedger,
     selectedProfileId: STATE.selectedProfile?.id,
     customMapping: STATE.customMapping,
@@ -28,7 +33,9 @@ function exportSession() {
     approvedAccruals: STATE.approvedAccruals,
     forecastScenario: STATE.forecastScenario,
     contextChecklist: STATE.contextChecklist || null,
-    auditTrail: STATE.auditTrail
+    auditTrail: STATE.auditTrail,
+    defensaPlanChoqueChecked: STATE.defensaPlanChoqueChecked || [],
+    defensaSimulacionInputs: STATE.defensaSimulacionInputs || null
   };
 
   const dataStr = JSON.stringify(sessionData);
@@ -50,12 +57,47 @@ function exportSession() {
 }
 
 /**
+ * exportPortfolioSession()
+ * @description Exporta la lista completa de startups de la cartera en un único archivo consolidado .aptki.
+ */
+function exportPortfolioSession() {
+  if (!STATE.cartera || STATE.cartera.length === 0) {
+    showToast('No hay cartera activa para guardar', 'error');
+    return;
+  }
+
+  const portfolioData = {
+    version: '1.2',
+    timestamp: new Date().toISOString(),
+    mode: 'portfolio',
+    startups: STATE.cartera.map(st => ({
+      nombre: st.nombre,
+      arquetipo: st.arquetipo,
+      selectedProfileId: st.selectedProfileId,
+      sessionData: st.sessionData
+    }))
+  };
+
+  const dataStr = JSON.stringify(portfolioData);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cartera_aptki_${new Date().toISOString().slice(0, 10)}.aptki`;
+  
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showToast('Cartera consolidada guardada ✓', 'success');
+}
+
+/**
  * importSession(file)
- * @description Lee un archivo `.aptki` subido por el usuario, decodifica el JSON y restaura 
- * el estado global de la aplicación (STATE). Si el archivo contiene análisis completos, los re-evalúa 
- * y recarga los módulos de Forecast y Scoring para rehidratar la UI a su estado original.
- * @param {File} file - El objeto File seleccionado por el usuario mediante un input type="file".
- * @returns {void} Muta la variable global `STATE` y navega automáticamente al Dashboard.
+ * @description Lee un archivo `.aptki`, decodifica el JSON y determina de forma transparente
+ * si es un archivo de cartera o de startup única, rehidratando la UI de manera correspondiente.
  */
 function importSession(file) {
   if (!file.name.endsWith('.aptki') && !file.name.endsWith('.json')) {
@@ -68,52 +110,35 @@ function importSession(file) {
     try {
       const data = JSON.parse(e.target.result);
       
-      // Restaurar estado
-      STATE.parsedLedger = data.parsedLedger;
-      STATE.customMapping = data.customMapping;
-      STATE.extraInputs = data.extraInputs || {};
-      STATE.empresa = data.empresa || { nombre: '', sector: '', empleados: 0 };
-      STATE.scoringInputs = data.scoringInputs || {};
-      STATE.approvedAccruals = data.approvedAccruals || [];
-      STATE.forecastScenario = data.forecastScenario || 'base';
-      STATE.auditTrail = data.auditTrail || [];
-      STATE.contextChecklist = data.contextChecklist || null;
-      if (typeof logAudit === 'function') logAudit('Sesión restaurada', `Desde archivo ${file.name}`);
-
-      // Restaurar perfil
-      if (data.selectedProfileId) {
-        STATE.selectedProfile = BUSINESS_PROFILES.find(p => p.id === data.selectedProfileId);
-      }
-
-      // Actualizar UI básica
-      document.getElementById('empresa-badge').textContent =
-        `${STATE.empresa.nombre || 'Sesión Recuperada'} · ${STATE.selectedProfile?.icon || ''} ${STATE.selectedProfile?.name || ''}`;
-
-      // Si había un ledger parseado y un mapeo, reconstruir el análisis final directamente
-      if (STATE.parsedLedger && STATE.customMapping && STATE.selectedProfile) {
-        STATE.analysisResult = analyzeLedger(
-          STATE.parsedLedger,
-          STATE.selectedProfile.id,
-          STATE.customMapping,
-          STATE.approvedAccruals,
-          STATE.contextChecklist
-        );
-        STATE.accrualsReviewed = true;
+      // Control de Modo de Carga
+      if (data.mode === 'portfolio' || Array.isArray(data.startups)) {
+        // Carga en Modo Cartera
+        STATE.carteraMode = true;
+        STATE.cartera = data.startups.map(st => {
+          // Re-calcular triage para cada elemento al importar
+          const startupObj = {
+            nombre: st.nombre,
+            arquetipo: st.arquetipo || 'General',
+            selectedProfileId: st.selectedProfileId,
+            sessionData: st.sessionData
+          };
+          if (typeof evaluateStartupTriage === 'function') {
+            return evaluateStartupTriage(startupObj);
+          }
+          return startupObj;
+        });
         
-        // Ejecutar los pre-cálculos de los módulos
-        if (typeof scoreFinanciacion === 'function') {
-           STATE.scoringResult = scoreFinanciacion(STATE.analysisResult, STATE.scoringInputs);
-        }
-        
-        if (typeof buildForecast === 'function') {
-           FORECAST_HYP = null; // forzar recalculo defaults si no hay
-           STATE.forecastResult = buildForecast(STATE.analysisResult, typeof _getDefaultHyp === 'function' ? _getDefaultHyp() : {});
-        }
+        // Limpiamos la empresa activa del dashboard individual
+        clearActiveSingleSession();
 
-        showToast('Sesión cargada. Análisis restaurado.', 'success');
-        navigate('dashboard');
+        showToast(`Cartera cargada con ${STATE.cartera.length} startups ✓`, 'success');
+        if (typeof navigate === 'function') navigate('cartera');
+        if (typeof renderCarteraTab === 'function') renderCarteraTab();
+        
       } else {
-        showToast('Sesión cargada parcialmente. Faltan datos.', 'warn');
+        // Carga en Modo Empresa Única Estándar
+        STATE.carteraMode = false;
+        loadSingleSessionData(data, file.name);
       }
 
     } catch (err) {
@@ -124,12 +149,159 @@ function importSession(file) {
   reader.readAsText(file);
 }
 
+/**
+ * clearActiveSingleSession()
+ * @description Limpia el estado individual activo de la workstation al pasar a modo cartera global.
+ */
+function clearActiveSingleSession() {
+  STATE.parsedLedger = null;
+  STATE.analysisResult = null;
+  STATE.selectedProfile = null;
+  STATE.customMapping = null;
+  STATE.empresa = { nombre: '', sector: '', empleados: 0 };
+  STATE.scoringResult = null;
+  STATE.forecastResult = null;
+  
+  const badge = document.getElementById('empresa-badge');
+  if (badge) badge.textContent = 'Modo Cartera Multicompañía';
+}
+
+/**
+ * loadSingleSessionData(data, filename)
+ * @description Rehidrata el estado individual de la aplicación con un payload de sesión único.
+ */
+function loadSingleSessionData(data, filename) {
+  STATE.parsedLedger = data.parsedLedger;
+  STATE.customMapping = data.customMapping;
+  STATE.extraInputs = data.extraInputs || {};
+  STATE.empresa = data.empresa || { nombre: '', sector: '', empleados: 0 };
+  STATE.scoringInputs = data.scoringInputs || {};
+  STATE.approvedAccruals = data.approvedAccruals || [];
+  STATE.forecastScenario = data.forecastScenario || 'base';
+  STATE.auditTrail = data.auditTrail || [];
+  STATE.contextChecklist = data.contextChecklist || null;
+  STATE.defensaPlanChoqueChecked = data.defensaPlanChoqueChecked || [];
+  STATE.defensaSimulacionInputs = data.defensaSimulacionInputs || null;
+  
+  if (typeof logAudit === 'function') logAudit('Sesión restaurada', `Desde archivo ${filename}`);
+
+  if (data.selectedProfileId) {
+    STATE.selectedProfile = BUSINESS_PROFILES.find(p => p.id === data.selectedProfileId);
+  }
+
+  const badge = document.getElementById('empresa-badge');
+  if (badge) {
+    badge.textContent = `${STATE.empresa.nombre || 'Sesión Recuperada'} · ${STATE.selectedProfile?.icon || ''} ${STATE.selectedProfile?.name || ''}`;
+  }
+
+  // Reconstrucción del análisis reactivo si los datos del core están presentes
+  if (STATE.parsedLedger && STATE.customMapping && STATE.selectedProfile) {
+    STATE.analysisResult = analyzeLedger(
+      STATE.parsedLedger,
+      STATE.selectedProfile.id,
+      STATE.customMapping,
+      STATE.approvedAccruals,
+      STATE.contextChecklist
+    );
+    STATE.accrualsReviewed = true;
+    
+    if (typeof scoreFinanciacion === 'function') {
+       STATE.scoringResult = scoreFinanciacion(STATE.analysisResult, STATE.scoringInputs);
+    }
+    
+    if (typeof buildForecast === 'function') {
+       FORECAST_HYP = null;
+       STATE.forecastResult = buildForecast(STATE.analysisResult, typeof _getDefaultHyp === 'function' ? _getDefaultHyp() : {});
+    }
+
+    showToast('Sesión cargada. Análisis restaurado.', 'success');
+    if (typeof navigate === 'function') navigate('dashboard');
+  } else {
+    showToast('Sesión cargada parcialmente. Faltan datos.', 'warn');
+  }
+}
+
+/**
+ * addSessionToCartera(file)
+ * @description Procesa un archivo .aptki individual y lo agrega a la cartera activa en memoria,
+ * re-evaluando su triage financiero.
+ */
+function addSessionToCartera(file) {
+  return new Promise((resolve, reject) => {
+    if (!file.name.endsWith('.aptki') && !file.name.endsWith('.json')) {
+      showToast('Formato no válido para cartera. Usa .aptki', 'error');
+      resolve(null);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        
+        if (data.mode === 'portfolio') {
+          showToast('No puedes agregar una cartera consolidada a otra activa', 'error');
+          resolve(null);
+          return;
+        }
+
+        // Construir objeto provisional de startup
+        const startupObj = {
+          nombre: data.empresa?.nombre || file.name.replace('_aptki.aptki', '').replace('.aptki', ''),
+          arquetipo: BUSINESS_PROFILES.find(p => p.id === data.selectedProfileId)?.name || 'General',
+          selectedProfileId: data.selectedProfileId,
+          sessionData: data
+        };
+
+        // Procesar triage
+        let evaluated = startupObj;
+        if (typeof evaluateStartupTriage === 'function') {
+          evaluated = evaluateStartupTriage(startupObj);
+        }
+
+        // Evitar duplicidades por nombre
+        STATE.cartera = STATE.cartera.filter(st => st.nombre !== evaluated.nombre);
+        STATE.cartera.push(evaluated);
+
+        resolve(evaluated);
+      } catch (err) {
+        console.error(err);
+        resolve(null);
+      }
+    };
+    reader.readAsText(file);
+  });
+}
+
+// Carga en lote de múltiples archivos en el modo cartera
+async function importMultipleSessionsInBatch(files) {
+  let count = 0;
+  for (const file of files) {
+    const res = await addSessionToCartera(file);
+    if (res) count++;
+  }
+  
+  if (count > 0) {
+    STATE.carteraMode = true;
+    clearActiveSingleSession();
+    showToast(`Se agregaron ${count} startups a la cartera ✓`, 'success');
+    if (typeof navigate === 'function') navigate('cartera');
+    if (typeof renderCarteraTab === 'function') renderCarteraTab();
+  }
+}
+
 // Escuchar cambios en un input oculto para cargar sesiones
 document.addEventListener('DOMContentLoaded', () => {
   const fileInput = document.getElementById('session-upload-input');
   if (fileInput) {
     fileInput.addEventListener('change', (e) => {
-      if (e.target.files[0]) importSession(e.target.files[0]);
+      if (e.target.files.length > 0) {
+        if (e.target.files.length === 1) {
+          importSession(e.target.files[0]);
+        } else {
+          importMultipleSessionsInBatch(Array.from(e.target.files));
+        }
+      }
     });
   }
 });
