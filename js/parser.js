@@ -232,38 +232,80 @@ function detectAnomalies(entries, byMonth) {
   const anomalies = [];
   const months = Object.keys(byMonth).sort();
 
+  // 1. Descuadre Contable por Materialidad Relativa
   for (const mk of months) {
     const grp = byMonth[mk];
     const totalDebe  = grp.reduce((s, e) => s + e.debe, 0);
     const totalHaber = grp.reduce((s, e) => s + e.haber, 0);
     const diff = Math.abs(totalDebe - totalHaber);
-    if (diff > 1) { 
-      anomalies.push({
-        id: 'descuadre_contable',
-        severity: 'high',
-        month: mk,
-        message: `Descuadre contable en ${mk}`,
-        detail: `Debe=${totalDebe.toFixed(2)}€, Haber=${totalHaber.toFixed(2)}€, Diferencia=${diff.toFixed(2)}€`
-      });
+    const volumenMes = totalDebe > 0 ? totalDebe : 1; // Evitar división por cero
+
+    if (diff > 0.02) { // Ignorar céntimos (tolerancia de redondeo absoluto)
+      if (diff <= 10.00 && (diff / volumenMes) <= 0.0001) {
+        anomalies.push({
+          id: 'descuadre_contable',
+          severity: 'low',
+          month: mk,
+          message: `Diferencia menor por redondeo en ${mk}`,
+          detail: `Descuadre insignificante de ${diff.toFixed(2)}€ (dentro del 0.01% del volumen del mes).`
+        });
+      } else if (diff <= 100.00 && (diff / volumenMes) <= 0.001) {
+        anomalies.push({
+          id: 'descuadre_contable',
+          severity: 'medium',
+          month: mk,
+          message: `Descuadre leve en ${mk}`,
+          detail: `Diferencia no material de ${diff.toFixed(2)}€ (dentro del 0.1% del volumen del mes).`
+        });
+      } else if (diff > 1000.00 || (diff / volumenMes) > 0.01) {
+        anomalies.push({
+          id: 'descuadre_contable',
+          severity: 'critical',
+          month: mk,
+          message: `Descuadre contable crítico en ${mk}`,
+          detail: `Diferencia crítica de ${diff.toFixed(2)}€ (superior al 1.0% del volumen o >1000€). Invalida la integridad del mes.`
+        });
+      } else {
+        anomalies.push({
+          id: 'descuadre_contable',
+          severity: 'high',
+          month: mk,
+          message: `Descuadre contable relevante en ${mk}`,
+          detail: `Diferencia material de ${diff.toFixed(2)}€ (Debe=${totalDebe.toFixed(2)}€, Haber=${totalHaber.toFixed(2)}€).`
+        });
+      }
     }
   }
 
+  // 2. Amortizaciones Recurrentes vs Criterio Concentrado a Revisar
   const monthsWithAmort = months.filter(mk =>
     byMonth[mk].some(e => e.cuenta.startsWith('68'))
   );
   const monthsWithoutAmort = months.filter(mk =>
     !byMonth[mk].some(e => e.cuenta.startsWith('68'))
   );
+
   if (monthsWithAmort.length > 0 && monthsWithoutAmort.length > 0) {
-    anomalies.push({
-      id: 'meses_sin_amortizacion',
-      severity: 'medium',
-      month: monthsWithoutAmort.join(', '),
-      message: 'Meses sin amortización cuando otros sí la registran',
-      detail: `Sin amort: ${monthsWithoutAmort.join(', ')} | Con amort: ${monthsWithAmort.join(', ')}`
-    });
+    if (monthsWithAmort.length <= 3) {
+      anomalies.push({
+        id: 'meses_sin_amortizacion',
+        severity: 'low',
+        month: monthsWithoutAmort.join(', '),
+        message: 'Criterio de amortización acumulada a revisar',
+        detail: `Amortización registrada de forma discontinua únicamente en: ${monthsWithAmort.join(', ')}. Se sugiere revisar si corresponde a un criterio de periodificación trimestral/anual o a una omisión voluntaria.`
+      });
+    } else {
+      anomalies.push({
+        id: 'meses_sin_amortizacion',
+        severity: 'medium',
+        month: monthsWithoutAmort.join(', '),
+        message: 'Meses omitidos en amortización recurrente',
+        detail: `Posible inconsistencia técnica u omisión en los meses: ${monthsWithoutAmort.join(', ')}. Se detecta recurrencia mensual consistente en los otros ${monthsWithAmort.length} meses.`
+      });
+    }
   }
 
+  // Variación brusca en ingresos
   for (let i = 1; i < months.length; i++) {
     const mk = months[i];
     const prev = months[i - 1];
@@ -283,15 +325,38 @@ function detectAnomalies(entries, byMonth) {
     }
   }
 
-  const hasResultados = entries.some(e => e.cuenta.startsWith('129'));
-  if (hasResultados) {
-    anomalies.push({
-      id: 'cuenta_129_detectada',
-      severity: 'low',
-      month: 'General',
-      message: 'Se detectaron apuntes en cuenta 129 (Resultado del ejercicio)',
-      detail: 'Verificar que el cierre contable se realizó correctamente'
-    });
+  // 3. Uso Estructurado vs Uso Disperso de la Cuenta 129
+  const entriesCon129 = entries.filter(e => e.cuenta.startsWith('129'));
+  if (entriesCon129.length > 0) {
+    const mesesCon129 = [...new Set(entriesCon129.map(e => e.monthKey))].sort();
+    const firstMonth = months[0];
+    const lastMonth = months[months.length - 1];
+    const intermedios = mesesCon129.filter(m => m !== firstMonth && m !== lastMonth);
+
+    if (intermedios.length === 0) {
+      anomalies.push({
+        id: 'cuenta_129_detectada',
+        severity: 'low',
+        month: mesesCon129.join(', '),
+        message: 'Uso estructurado de la cuenta 129 (regularización/apertura)',
+        detail: `Apuntes en la cuenta 129 detectados exclusivamente en meses estándar de apertura (${firstMonth}) y/o regularización (${lastMonth}). Uso estructurado conforme.`
+      });
+    } else {
+      // Determinar la severidad basada en el importe máximo de los apuntes intermedios
+      const maxImporteIntermedio = entriesCon129
+        .filter(e => e.monthKey !== firstMonth && e.monthKey !== lastMonth)
+        .reduce((max, e) => Math.max(max, e.debe, e.haber), 0);
+
+      const severidad = maxImporteIntermedio >= 1000.00 ? 'high' : 'medium';
+
+      anomalies.push({
+        id: 'cuenta_129_detectada',
+        severity: severidad,
+        month: intermedios.join(', '),
+        message: 'Uso no estándar o disperso de la cuenta 129',
+        detail: `Se detectaron movimientos en la cuenta 129 en meses intermedios de la serie ordinaria (${intermedios.join(', ')}). Importe máximo de ${maxImporteIntermedio.toFixed(2)}€. Se requiere verificar si existe una distorsión en la PyG o balance de dichos meses.`
+      });
+    }
   }
 
   return anomalies;
