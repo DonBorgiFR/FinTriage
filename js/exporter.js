@@ -18,6 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const t = data.totales;
       const runway = t.burnRateNeto > 0 ? (t.cajaFinal / t.burnRateNeto).toFixed(1) + ' meses' : 'Rentable';
 
+      const { defensa } = typeof buildNarrative === 'function'
+        ? buildNarrative(data, STATE.forecastResult, STATE.scoringResult)
+        : { defensa: '' };
+
       const markdown = `<system_context>
 Estos datos financieros pertenecen a la empresa ${STATE.empresa.nombre || 'analizada'} y han sido procesados y estructurados automáticamente por la APTKI Workstation a partir de su libro diario contable bruto.
 </system_context>
@@ -38,7 +42,11 @@ ${(conf.analysisLimitations || []).map(l => '  * ' + l).join('\n')}
 
 <actionable_findings>
 ${anom.length > 0 ? anom.map(a => '- [' + a.severity.toUpperCase() + '] ' + a.message).join('\n') : '- Ninguna anomalía detectada.'}
-</actionable_findings>`;
+</actionable_findings>
+
+<cfo_defense_argumentary>
+${defensa || 'No se han generado alegaciones de defensa.'}
+</cfo_defense_argumentary>`;
 
       navigator.clipboard.writeText(markdown).then(() => {
         showToast('Contexto copiado al portapapeles. Listo para pegar en ChatGPT/Claude', 'success');

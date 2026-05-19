@@ -55,83 +55,73 @@
 ```javascript
 {
   meta: {
-    ...ParsedLedger.meta,    // Se hereda todo del parser
-    trustScore: number       // 0–100. Métrica maestra de fiabilidad del libro
+    fileName: string,        // Nombre del archivo .xlsx cargado
+    sheets: string[],        // Hojas procesadas
+    months: string[],        // Meses ordenados cronológicamente
+    totalEntries: number,    // Total de asientos
+    totalCuentas: number     // Cuentas únicas
+  },
+  anomalies: Anomaly[],      // Fuente canónica de todas las anomalías combinadas (parser + analyzer)
+  confidence: {
+    trustScore: number,              // Puntuación de confianza contable (0-100)
+    confidenceLevel: 'reliable' | 'reservations' | 'indicative' | 'blocked',
+    confidenceLabel: string,         // Texto descriptivo del nivel de confianza
+    forecastMode: 'normal' | 'cautious' | 'conservative' | 'simulation',
+    scoringPenalty: number,          // Penalización aplicada al scoring (0-25)
+    ebitdaSuspect: boolean,          // true si hay ≥3 anomalías high o critical
+    analysisLimitations: string[],   // Advertencias y limitaciones textuales
+    fundingReadinessFlags: {
+      scoringDefensible: boolean,    // Apto para scoring público
+      forecastDefensible: boolean,   // Apto para proyecciones
+      narrativeConclusive: boolean,  // Apto para informe de narrativa concluyente
+      requiresManualReview: boolean  // Requiere limpieza/revisión manual
+    },
+    auditReasons: string[]           // Bitácora detallada de los ajustes aplicados al score
   },
   totales: {
-    ingresos: number,        // Σ totalIngresos de todos los meses
-    gastos: number,          // Σ (cogs + personal + marketing + serviciosOp + tributos + amort + gtosFinancieros)
-    ebitda: number,          // Σ ebitda mensual
-    resultado: number,       // Σ resultadoNeto mensual
-    cogs: number,            // Σ COGS
-    cajaFinal: number,       // Saldo de tesorería (grupos 57x). Mínimo 0.
-    burnRateNeto: number,    // (gastos - ingresos) / nMeses. 0 si rentable.
-    gastosPorGrupo: { [subgrupo: string]: number },
-    saldoCuenta: { [cuenta: string]: number },  // Saldo neto por cuenta (haber - debe)
-    ebitdaSuspect: boolean   // true si ≥3 anomalías high/critical
+    ingresos: number,        // Suma total de ingresos
+    gastos: number,          // Suma total de gastos operativos
+    ebitda: number,          // Suma total de EBITDA
+    resultado: number,       // Suma total de Resultado Neto
+    cogs: number,            // Suma total de Coste de Ventas
+    cajaFinal: number,       // Saldo de tesorería final (mínimo 0)
+    burnRateNeto: number,    // Ritmo de consumo de caja neto promedio por mes
+    gastosPorGrupo: { [subgrupo: string]: number }, // Gastos agregados por subgrupo PGC
+    saldoCuenta: { [cuenta: string]: number }       // Saldo neto por cuenta PGC (haber - debe)
   },
   balance: {
-    activoNoCorriente: number,
+    cajaFinal: number,
     activoCorriente: number,
-## AnalysisResult
-Objeto generado por `analyzer.js` que contiene el diagnóstico financiero completo.
-
-```json
-{
-  "meta": {
-    "filename": "string",
-    "periodo": "string",
-    "trustScore": "number (0-100)"
+    activoNoCorriente: number,
+    activoTotal: number,
+    pasivoCorriente: number,
+    pasivoNoCorriente: number,
+    pasivoTotal: number,
+    patrimonioNeto: number
   },
-  "anomalies": "Anomaly[]", 
-  "confidence": {
-    "trustScore": "number",
-    "confidenceLevel": "reliable | reservations | indicative | blocked",
-    "confidenceLabel": "string",
-    "forecastMode": "normal | cautious | conservative | simulation",
-    "scoringPenalty": "number",
-    "ebitdaSuspect": "boolean",
-    "analysisLimitations": "string[]",
-    "fundingReadinessFlags": {
-      "scoringDefensible": "boolean",
-      "forecastDefensible": "boolean",
-      "narrativeConclusive": "boolean",
-      "requiresManualReview": "boolean"
+  pygMensual: {
+    [monthKey: string]: {
+      ventas: number,
+      otrosIngresos: number,
+      totalIngresos: number,
+      cogs: number,
+      margenBruto: number,
+      personal: number,
+      marketing: number,
+      serviciosOperativos: number,
+      tributos: number,
+      ebitda: number,
+      amortizacion: number,
+      ebit: number,
+      gastosFinancieros: number,
+      resultadoNeto: number,
+      cajaSaldo: number
     }
   },
-  "totales": {
-    "ingresos": "number",
-    "gastos": "number",
-    "ebitda": "number",
-    "resultado": "number",
-    "ebitdaSuspect": "boolean"
-  },
-  "balance": {
-    "activoNoCorriente": "number",
-    "activoCorriente": "number",
-    "patrimonioNeto": "number",
-    "pasivoNoCorriente": "number",
-    "pasivoCorriente": "number",
-    "pasivoTotal": "number"
-  },
-  "pygMensual": {
-    "[monthKey]": {
-      "ventas": "number",
-      "otrosIngresos": "number",
-      "totalIngresos": "number",
-      "cogs": "number",
-      "margenBruto": "number",
-      "personal": "number",
-      "marketing": "number",
-      "serviciosOperativos": "number",
-      "tributos": "number",
-      "ebitda": "number",
-      "amortizacion": "number",
-      "ebit": "number",
-      "gastosFinancieros": "number",
-      "resultadoNeto": "number"
-    }
-  }
+  byMonth: { [monthKey: string]: Entry[] },
+  lastMonth: string,
+  lastMonthEntries: Entry[],
+  categoryMap: { [cuenta: string]: string }
 }
 ```
 
@@ -145,7 +135,7 @@ Objeto generado por `analyzer.js` que contiene el diagnóstico financiero comple
 
 | Módulo | Campo(s) consumidos | Notas |
 |--------|---------------------|-------|
-| `app.js` (Dashboard) | `totales.*`, `pygMensual`, `meta.trustScore`, `totales.ebitdaSuspect` | Renderiza KPIs, PyG, Trust Score |
+| `app.js` (Dashboard) | `totales.*`, `pygMensual`, `confidence.trustScore`, `confidence.ebitdaSuspect` | Renderiza KPIs, PyG, Trust Score |
 | `narrative.js` | `totales.ingresos`, `totales.gastos`, `totales.ebitda`, `totales.cajaFinal`, `totales.burnRateNeto`, `pygMensual` | Genera texto analítico |
 | `scorer.js` | `totales.ingresos`, `totales.ebitda`, `totales.resultado`, `balance.*`, `totales.cajaFinal` | Scoring ENISA/CDTI |
 | `forecaster.js` | `pygMensual`, `totales.ingresos`, `totales.gastos`, `lastMonth`, `lastMonthEntries` | Proyección 12M |

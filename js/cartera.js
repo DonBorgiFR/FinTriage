@@ -42,7 +42,7 @@ function evaluateStartupTriage(startupObj) {
   if (analysis) {
     caja = analysis.totales?.cajaFinal ?? 0;
     burnRate = analysis.totales?.burnRateNeto ?? 0;
-    trustScore = analysis.meta?.trustScore ?? 100;
+    trustScore = analysis.confidence?.trustScore ?? 100;
     ingresosAnuales = analysis.totales?.ingresos ?? 0;
     balance = analysis.balance;
     saldoCuenta = analysis.totales?.saldoCuenta ?? {};

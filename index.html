@@ -137,6 +137,16 @@
       <div id="anomaly-section" style="display:none; margin-top:24px;">
         <div class="card">
           <div class="card-title">⚠️ Anomalías Detectadas</div>
+          
+          <!-- Filtros "Pills" por Severidad (Fase 7) -->
+          <div class="anomaly-pills" id="anomaly-pills" style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+            <button class="pill-btn active" data-severity="all">🔍 Todas</button>
+            <button class="pill-btn" data-severity="critical">⛔ Críticas</button>
+            <button class="pill-btn" data-severity="high">🔴 Alta</button>
+            <button class="pill-btn" data-severity="medium">🟡 Media</button>
+            <button class="pill-btn" data-severity="low">🟢 Baja</button>
+          </div>
+
           <div class="anomaly-list" id="anomaly-list"></div>
         </div>
       </div>
@@ -144,22 +154,39 @@
       <!-- TABLA PREVIEW -->
       <div id="preview-section" style="display:none; margin-top:24px;">
         <div class="card">
-          <div class="card-title">Vista previa — Asientos (primeros 50)</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 12px;">
+            <div class="card-title" style="margin-bottom: 0;">Vista previa — Asientos</div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="preview-search" placeholder="🔍 Buscar por cuenta o descripción..." style="padding: 8px 12px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 0.85rem; width: 250px; outline: none; transition: var(--transition);" />
+            </div>
+          </div>
           <div class="table-wrap">
             <table id="preview-table">
               <thead>
                 <tr>
-                  <th>Mes</th>
-                  <th>Fecha</th>
-                  <th>Asiento</th>
-                  <th>Cuenta</th>
-                  <th>Descripción</th>
-                  <th style="text-align:right">Debe (€)</th>
-                  <th style="text-align:right">Haber (€)</th>
+                  <th class="clickable-header" data-column="monthKey">Mes</th>
+                  <th class="clickable-header sort-desc" data-column="fecha">Fecha</th>
+                  <th class="clickable-header" data-column="asiento">Asiento</th>
+                  <th class="clickable-header" data-column="cuenta">Cuenta</th>
+                  <th class="clickable-header" data-column="descripcion">Descripción</th>
+                  <th class="clickable-header" data-column="debe" style="text-align:right">Debe (€)</th>
+                  <th class="clickable-header" data-column="haber" style="text-align:right">Haber (€)</th>
                 </tr>
               </thead>
               <tbody id="preview-tbody"></tbody>
             </table>
+          </div>
+          
+          <!-- Controles de Paginación (Fase 7) -->
+          <div class="grid-pagination" id="preview-pagination" style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; flex-wrap: wrap; gap: 12px; border-top: 1px solid var(--border); padding-top: 16px;">
+            <div style="font-size: 0.8rem; color: var(--text-secondary);" id="preview-pagination-info">Mostrando 0 - 0 de 0 asientos</div>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn btn-secondary" id="btn-page-first" style="padding: 6px 12px; font-size: 0.8rem;">« Primero</button>
+              <button class="btn btn-secondary" id="btn-page-prev" style="padding: 6px 12px; font-size: 0.8rem;">‹ Ant</button>
+              <span style="font-size: 0.82rem; color: var(--text-primary); align-self: center; margin: 0 8px; font-weight: 500;" id="preview-page-current">Pág. 1 de 1</span>
+              <button class="btn btn-secondary" id="btn-page-next" style="padding: 6px 12px; font-size: 0.8rem;">Sig ›</button>
+              <button class="btn btn-secondary" id="btn-page-last" style="padding: 6px 12px; font-size: 0.8rem;">Último »</button>
+            </div>
           </div>
         </div>
       </div>
@@ -378,7 +405,17 @@
 
         <!-- Panel de Hallazgos Accionables -->
         <div class="card" id="actionable-findings-section" style="margin-bottom:24px; display:none; border-color: var(--danger);">
-          <div class="card-title" style="color: var(--danger);">🚨 Hallazgos Accionables</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+            <div class="card-title" style="color: var(--danger); margin-bottom: 0;">🚨 Hallazgos Accionables</div>
+            <!-- Filtros "Pills" por Severidad en Dashboard (Fase 7) -->
+            <div class="anomaly-pills" id="dashboard-anomaly-pills" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="pill-btn active" data-severity="all">🔍 Todas</button>
+              <button class="pill-btn" data-severity="critical">⛔ Críticas</button>
+              <button class="pill-btn" data-severity="high">🔴 Alta</button>
+              <button class="pill-btn" data-severity="medium">🟡 Media</button>
+              <button class="pill-btn" data-severity="low">🟢 Baja</button>
+            </div>
+          </div>
           <div id="actionable-findings-content"></div>
         </div>
 

@@ -9,12 +9,24 @@ class ReactiveStore {
     this.events = {}; // Almacenará los suscriptores: { 'eventName': [callbacks] }
     
     // Callback interno que el Proxy llamará ante cualquier mutación del objeto
-    const onMutate = (property, newValue, oldValue, targetObj) => {
-      // 1. Notifica específicamente a quienes vigilan esta propiedad (ej. 'parsedLedger')
-      this.publish(property, newValue, oldValue, targetObj);
+    const onMutate = (path, newValue, oldValue, targetObj, prop) => {
+      // 1. Notifica el path completo (ej. 'ui.entries.currentPage')
+      this.publish(path, newValue, oldValue, targetObj);
       
-      // 2. Notifica al wildcard '*' (útil para auditoría global o debuggers)
-      this.publish('*', property, newValue, oldValue, targetObj);
+      // 2. Notifica las partes del path (ej. 'ui.entries', 'ui')
+      const segments = path.split('.');
+      while (segments.pop()) {
+        if (segments.length > 0) {
+          const parentPath = segments.join('.');
+          this.publish(parentPath, newValue, oldValue, targetObj);
+        }
+      }
+      
+      // 3. También notifica la propiedad local individual por compatibilidad (ej. 'parsedLedger', 'currentPage')
+      this.publish(prop, newValue, oldValue, targetObj);
+      
+      // 4. Notifica al wildcard '*' (útil para auditoría global o debuggers)
+      this.publish('*', path, newValue, oldValue, targetObj);
     };
 
     // Construimos el Proxy Profundo (Deep Proxy)
@@ -25,10 +37,11 @@ class ReactiveStore {
    * Crea un ES6 Proxy recursivo para detectar mutaciones en objetos anidados.
    * La trampa 'set' actúa como barrera inmutable.
    */
-  _createDeepProxy(target, callback) {
+  _createDeepProxy(target, callback, path = '') {
     const handler = {
       set: (obj, prop, value) => {
         const oldValue = obj[prop];
+        const currentPath = path ? `${path}.${prop}` : prop;
         
         // Si el nuevo valor inyectado es un objeto o array, lo envolvemos recursivamente
         // Esto asegura que mutaciones profundas (ej: STATE.empresa.nombre = 'X') sigan siendo reactivas
@@ -36,13 +49,13 @@ class ReactiveStore {
         const isMappable = value !== null && typeof value === 'object' && 
                            (Array.isArray(value) || value.constructor === Object);
         const newValue = isMappable 
-          ? this._createDeepProxy(value, callback) 
+          ? this._createDeepProxy(value, callback, currentPath) 
           : value;
 
         // Solo publicamos el evento si el valor realmente ha cambiado (evita bucles)
         if (oldValue !== newValue) {
           obj[prop] = newValue;
-          callback(prop, newValue, oldValue, obj);
+          callback(currentPath, newValue, oldValue, obj, prop);
         }
         
         return true; // Asignación exitosa
@@ -50,8 +63,9 @@ class ReactiveStore {
       deleteProperty: (obj, prop) => {
         if (prop in obj) {
           const oldValue = obj[prop];
+          const currentPath = path ? `${path}.${prop}` : prop;
           delete obj[prop];
-          callback(prop, undefined, oldValue, obj);
+          callback(currentPath, undefined, oldValue, obj, prop);
         }
         return true;
       }
@@ -63,7 +77,7 @@ class ReactiveStore {
       const isMappable = value !== null && typeof value === 'object' && 
                          (Array.isArray(value) || value.constructor === Object);
       if (isMappable) {
-        target[key] = this._createDeepProxy(value, callback);
+        target[key] = this._createDeepProxy(value, callback, key);
       }
     }
 
@@ -132,7 +146,23 @@ const initialDataContract = {
   defensaSimulacionInputs: null,
   cartera: [],
   carteraActiveStartup: null,
-  carteraMode: false
+  carteraMode: false,
+  
+  // Nodo de UI reactivo para Data Grids
+  ui: {
+    // Filtros de anomalías generales / hallazgos
+    anomalyFilter: 'all',              // 'all' | 'critical' | 'high' | 'medium' | 'low'
+    expandedAnomalies: [],             // Array de IDs o índices de anomalías expandidas en Master-Detail
+    
+    // Configuración del Data Grid de apuntes / asientos
+    entries: {
+      currentPage: 1,
+      pageSize: 50,
+      sortColumn: 'fecha',             // 'fecha' | 'asiento' | 'cuenta' | 'descripcion' | 'debe' | 'haber'
+      sortDirection: 'desc',           // 'asc' | 'desc'
+      filterText: ''                   // Buscador de texto libre (por descripción o cuenta)
+    }
+  }
 };
 
 // ==========================================

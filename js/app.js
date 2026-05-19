@@ -17,7 +17,21 @@ appStore.subscribe('parsedLedger', (parsed) => {
   if (parsed) {
     renderParseSummary(parsed);
     if (parsed.anomalies) renderAnomalies(parsed.anomalies);
-    if (parsed.entries) renderPreviewTable(parsed.entries.slice(0, 50));
+    if (parsed.entries) renderPreviewTable();
+  }
+});
+
+// Suscripciones reactivas adicionales para Data Grids (Fase 7)
+appStore.subscribe('ui.entries', () => {
+  renderPreviewTable();
+});
+
+appStore.subscribe('ui.anomalyFilter', () => {
+  if (STATE.parsedLedger && STATE.parsedLedger.anomalies) {
+    renderAnomalies(STATE.parsedLedger.anomalies);
+  }
+  if (STATE.analysisResult) {
+    renderActionableFindings();
   }
 });
 
@@ -324,13 +338,57 @@ function renderParseSummary(parsed) {
   document.getElementById('sum-anomalias').textContent = parsed.anomalies.length;
 }
 
-// ---- Render: Anomalías ----
-function renderAnomalies(anomalies) {
-  const sec = document.getElementById('anomaly-section');
-  const list = document.getElementById('anomaly-list');
-  if (!anomalies.length) { sec.style.display = 'none'; return; }
-  sec.style.display = 'block';
-  list.innerHTML = anomalies.map(a => {
+// ---- Auxiliares Contables y Data Grids (Fase 7) ----
+function getAnomalyContextKey(a) {
+  const context = a.month || a.cuenta || (a.detail ? a.detail.substring(0, 35).trim() : 'global');
+  return `${a.id}_${context}`;
+}
+
+function getPaginatedEntries(entries, config) {
+  if (!entries) return { paginated: [], totalItems: 0 };
+  
+  // 1. Filtrado
+  const filterText = (config.filterText || '').trim().toLowerCase();
+  let filtered = entries;
+  if (filterText) {
+    filtered = entries.filter(e => {
+      const cuentaStr = (e.cuenta || '').toString().toLowerCase();
+      const descStr = (e.descripcion || '').toString().toLowerCase();
+      return cuentaStr.includes(filterText) || descStr.includes(filterText);
+    });
+  }
+  
+  // 2. Ordenación
+  const sortCol = config.sortColumn || 'fecha';
+  const sortDir = config.sortDirection === 'asc' ? 1 : -1;
+  
+  const sorted = [...filtered].sort((a, b) => {
+    let valA = a[sortCol];
+    let valB = b[sortCol];
+    
+    if (valA === undefined || valA === null) valA = typeof valB === 'number' ? 0 : '';
+    if (valB === undefined || valB === null) valB = typeof valA === 'number' ? 0 : '';
+    
+    if (typeof valA === 'number' && typeof valB === 'number') {
+      return (valA - valB) * sortDir;
+    }
+    
+    const strA = String(valA);
+    const strB = String(valB);
+    return (strA < strB ? -1 : strA > strB ? 1 : 0) * sortDir;
+  });
+  
+  // 3. Paginación
+  const totalItems = sorted.length;
+  const start = (config.currentPage - 1) * config.pageSize;
+  const paginated = sorted.slice(start, start + config.pageSize);
+  
+  return { paginated, totalItems };
+}
+
+// ---- Render: Anomalías (Modulado & Limpio) ----
+function generateAnomaliesHTML(filtered) {
+  return filtered.map((a) => {
     let sevClass = a.severity;
     if (!['critical', 'high', 'medium', 'low'].includes(sevClass)) sevClass = 'low';
     let icon = '🟢';
@@ -338,33 +396,156 @@ function renderAnomalies(anomalies) {
     else if (a.severity === 'high') icon = '🔴';
     else if (a.severity === 'medium') icon = '🟡';
     
-    return `
-    <div class="anomaly-item sev-${sevClass}">
-      <span class="anomaly-icon">${icon}</span>
-      <div>
-        <strong>${a.message}</strong>
-        <div style="opacity:0.8;margin-top:2px;">${a.detail}</div>
+    const compositeKey = getAnomalyContextKey(a);
+    const isExpanded = STATE.ui.expandedAnomalies.includes(compositeKey);
+    const expandIndicator = `<span class="expand-indicator">▶</span>`;
+    
+    let html = `
+    <div class="anomaly-item sev-${sevClass} master-row ${isExpanded ? 'expanded' : ''}" data-composite-key="${compositeKey}">
+      <div class="anomaly-item-inner">
+        <span class="anomaly-icon">${icon}</span>
+        <div class="anomaly-item-text">
+          <strong class="anomaly-item-title">${expandIndicator}${a.message}</strong>
+          <div class="anomaly-item-meta">Cuenta: <code class="cuenta-code">${a.cuenta || 'n/a'}</code> | Contexto: ${a.month || 'Global'}</div>
+        </div>
       </div>
-    </div>
-  `}).join('');
+    `;
+    
+    if (isExpanded) {
+      const rec = FINDING_RECOMMENDATIONS[a.id] || { 
+        impacto: a.detail || 'Impacto técnico en la consistencia de los saldos.', 
+        rec: 'Revisar la documentación asociada a esta partida para justificar su registro contable.', 
+        efectoFinanciacion: 'Puede generar dudas o aclaraciones en procesos de auditoría.', 
+        accion: 'Análisis' 
+      };
+      html += `
+      <div class="detail-row anomaly-detail-card">
+        <div class="detail-container">
+          <div class="detail-block">
+            <span class="detail-label">Impacto:</span>
+            <span class="detail-value">${rec.impacto}</span>
+          </div>
+          <div class="detail-block">
+            <span class="detail-label">Recom.:</span>
+            <span class="detail-value detail-value-highlight">${rec.rec}</span>
+          </div>
+          <div class="detail-block">
+            <span class="detail-label">CDTI/ENISA:</span>
+            <span class="detail-value detail-value-warning">${rec.efectoFinanciacion}</span>
+          </div>
+          <div class="detail-block">
+            <span class="detail-label">Detalle:</span>
+            <span class="detail-value">${a.detail || '—'}</span>
+          </div>
+        </div>
+      </div>
+      `;
+    }
+    
+    html += `</div>`;
+    return html;
+  }).join('');
+}
+
+function bindAnomaliesListeners(list, anomalies) {
+  list.querySelectorAll('.master-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.detail-row')) return;
+      
+      const compositeKey = row.dataset.compositeKey;
+      const index = STATE.ui.expandedAnomalies.indexOf(compositeKey);
+      if (index === -1) {
+        STATE.ui.expandedAnomalies.push(compositeKey);
+      } else {
+        STATE.ui.expandedAnomalies.splice(index, 1);
+      }
+      renderAnomalies(anomalies);
+    });
+  });
+}
+
+function renderAnomalies(anomalies) {
+  const sec = document.getElementById('anomaly-section');
+  const list = document.getElementById('anomaly-list');
+  if (!anomalies.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  
+  // Aplicar filtro de severidad (Fase 7)
+  const filtered = anomalies.filter(a => {
+    return STATE.ui.anomalyFilter === 'all' || a.severity === STATE.ui.anomalyFilter;
+  });
+  
+  if (!filtered.length) {
+    list.innerHTML = `<div class="anomaly-empty-state">Ninguna anomalía con severidad "${STATE.ui.anomalyFilter}"</div>`;
+    return;
+  }
+
+  // Render detail rows expandibles (Master-Detail, Fase 7)
+  list.innerHTML = generateAnomaliesHTML(filtered);
+  
+  // Agregar listeners a las master-rows
+  bindAnomaliesListeners(list, anomalies);
 }
 
 // ---- Render: Preview Table ----
-function renderPreviewTable(entries) {
-  const sec = document.getElementById('preview-section');
-  const tbody = document.getElementById('preview-tbody');
-  sec.style.display = 'block';
-  tbody.innerHTML = entries.map(e => `
+// ---- Render: Preview Table ----
+function generatePreviewRowsHTML(paginated) {
+  return paginated.map(e => `
     <tr>
       <td>${e.monthKey}</td>
       <td>${e.fecha || '—'}</td>
       <td>${e.asiento || '—'}</td>
-      <td><code style="font-size:0.8em;color:var(--cyan)">${e.cuenta}</code></td>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.descripcion}">${e.descripcion || '—'}</td>
+      <td><code class="cuenta-code">${e.cuenta}</code></td>
+      <td class="td-ellipsis" title="${e.descripcion}">${e.descripcion || '—'}</td>
       <td class="td-num ${e.debe > 0 ? 'td-debit' : ''}">${e.debe > 0 ? e.debe.toLocaleString('es-ES', {minimumFractionDigits:2}) : '—'}</td>
       <td class="td-num ${e.haber > 0 ? 'td-credit' : ''}">${e.haber > 0 ? e.haber.toLocaleString('es-ES', {minimumFractionDigits:2}) : '—'}</td>
     </tr>
   `).join('');
+}
+
+function updatePreviewSortingHeaders() {
+  const headers = document.querySelectorAll('#preview-table th.clickable-header');
+  headers.forEach(th => {
+    const col = th.dataset.column;
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (col === STATE.ui.entries.sortColumn) {
+      th.classList.add(STATE.ui.entries.sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+    }
+  });
+}
+
+function updatePreviewPagination(totalItems) {
+  const infoEl = document.getElementById('preview-pagination-info');
+  const pageCurrentEl = document.getElementById('preview-page-current');
+  if (infoEl && pageCurrentEl) {
+    const totalPages = Math.max(1, Math.ceil(totalItems / STATE.ui.entries.pageSize));
+    const startItem = totalItems === 0 ? 0 : (STATE.ui.entries.currentPage - 1) * STATE.ui.entries.pageSize + 1;
+    const endItem = Math.min(totalItems, STATE.ui.entries.currentPage * STATE.ui.entries.pageSize);
+    
+    infoEl.textContent = `Mostrando ${startItem} - ${endItem} de ${totalItems.toLocaleString('es-ES')} asientos`;
+    pageCurrentEl.textContent = `Pág. ${STATE.ui.entries.currentPage} de ${totalPages}`;
+    
+    document.getElementById('btn-page-first').disabled = STATE.ui.entries.currentPage === 1;
+    document.getElementById('btn-page-prev').disabled = STATE.ui.entries.currentPage === 1;
+    document.getElementById('btn-page-next').disabled = STATE.ui.entries.currentPage === totalPages;
+    document.getElementById('btn-page-last').disabled = STATE.ui.entries.currentPage === totalPages;
+  }
+}
+
+function renderPreviewTable() {
+  if (!STATE.parsedLedger || !STATE.parsedLedger.entries) return;
+  
+  const sec = document.getElementById('preview-section');
+  const tbody = document.getElementById('preview-tbody');
+  if (!sec || !tbody) return;
+  
+  sec.style.display = 'block';
+  
+  const { paginated, totalItems } = getPaginatedEntries(STATE.parsedLedger.entries, STATE.ui.entries);
+  
+  tbody.innerHTML = generatePreviewRowsHTML(paginated);
+  updatePreviewSortingHeaders();
+  updatePreviewPagination(totalItems);
 }
 
 // ---- PASO 2: Contexto Contable ----
@@ -444,15 +625,15 @@ function renderMappingTable() {
     
     return `
       <tr>
-        <td><code style="color:var(--cyan);font-weight:bold;">${cta.cuenta}</code></td>
-        <td style="max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${cta.desc}">
+        <td><code class="cuenta-code font-bold">${cta.cuenta}</code></td>
+        <td class="td-ellipsis" title="${cta.desc}">
           ${cta.desc || '—'}
         </td>
-        <td class="td-num ${colorClass}" style="font-weight:600;">
+        <td class="td-num ${colorClass} font-bold">
           ${cta.saldoNeto.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}
         </td>
         <td>
-          <select data-cuenta="${cta.cuenta}" class="mapping-select" style="width:100%; padding:8px; background:var(--bg-surface); color:var(--text-primary); border:1px solid var(--border); border-radius:4px;">
+          <select data-cuenta="${cta.cuenta}" class="mapping-select">
             ${optionsHtml}
           </select>
         </td>
@@ -509,14 +690,14 @@ function renderAccrualsTable() {
     
     tbody.innerHTML = candidates.map((c, i) => `
       <tr>
-        <td style="text-align:center;">
-          <input type="checkbox" class="accrual-checkbox" data-index="${i}" style="width:18px;height:18px;accent-color:var(--cyan);cursor:pointer;" />
+        <td class="text-center">
+          <input type="checkbox" class="accrual-checkbox" data-index="${i}" />
         </td>
-        <td><code style="color:var(--cyan);font-weight:bold;">${c.cuenta}</code></td>
-        <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${c.descripcion}">${c.descripcion}</td>
+        <td><code class="cuenta-code font-bold">${c.cuenta}</code></td>
+        <td class="td-ellipsis" title="${c.descripcion}">${c.descripcion}</td>
         <td>${c.mesOrigen}</td>
-        <td class="td-num td-debit" style="font-weight:600;">${c.importeTotal.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-        <td class="td-num td-credit" style="font-weight:600;">${c.importeMensual.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+        <td class="td-num td-debit font-bold">${c.importeTotal.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+        <td class="td-num td-credit font-bold">${c.importeMensual.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
       </tr>
     `).join('');
 
@@ -602,15 +783,12 @@ function renderDashboard() {
   const banner = document.getElementById('dashboard-confidence-banner');
   if (banner) {
     if (confidence.confidenceLevel !== 'reliable') {
-      const colors = { reservations: '#f59e0b', indicative: '#f97316', blocked: '#ef4444' };
+      banner.className = `confidence-banner ${confidence.confidenceLevel}`;
       banner.style.display = 'block';
-      banner.style.background = `${colors[confidence.confidenceLevel]}15`;
-      banner.style.border = `1px solid ${colors[confidence.confidenceLevel]}40`;
-      banner.style.color = colors[confidence.confidenceLevel];
       banner.innerHTML = `
-        <div style="display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:var(--radius-sm);">
-          <span style="font-size:1.2rem;">⚠️</span>
-          <div style="font-size:0.85rem; flex:1;">
+        <div class="confidence-banner-inner">
+          <span class="confidence-banner-icon">⚠️</span>
+          <div class="confidence-banner-text">
             <strong>Análisis ${confidence.confidenceLabel}:</strong> ${confidence.analysisLimitations.join(' ')}
           </div>
         </div>
@@ -664,7 +842,7 @@ function renderDashboard() {
       <div class="kpi-card status-${status} ${pulseClass}" title="${desc}">
         <div class="kpi-label">${kpi.label}</div>
         <div class="kpi-value">${formatted}</div>
-        <div class="kpi-sub" style="${(kpi.id === 'ebitda' && confidence.ebitdaSuspect) ? 'color: var(--danger)' : ''}">${desc}</div>
+        <div class="kpi-sub ${(kpi.id === 'ebitda' && confidence.ebitdaSuspect) ? 'text-red' : ''}">${desc}</div>
         <div class="kpi-status">${getStatusIcon(status)}</div>
       </div>
     `;
@@ -706,7 +884,7 @@ function renderPyG(pygMensual) {
   const head = document.getElementById('pyg-head');
   const body = document.getElementById('pyg-body');
 
-  head.innerHTML = '<th>Partida</th>' + months.map(m => `<th style="text-align:right">${m}</th>`).join('') + '<th style="text-align:right">TOTAL</th>';
+  head.innerHTML = '<th>Partida</th>' + months.map(m => `<th>${m}</th>`).join('') + '<th>TOTAL</th>';
 
   const rows = [
     { key: 'ventas',            label: '📥 Ventas / Servicios' },
@@ -738,14 +916,16 @@ function renderPyG(pygMensual) {
       total = -Math.abs(total);
     }
     
-    const style = row.bold
-      ? `font-weight:600;color:${row.color || 'var(--text-primary)'};border-top:1px solid var(--border);`
-      : 'color:var(--text-secondary);';
+    let colorClass = '';
+    if (row.color === 'var(--amber)') colorClass = 'text-amber';
+    else if (row.color === 'var(--green)') colorClass = 'text-green';
 
-    return `<tr>
-      <td style="${style}">${row.label}</td>
-      ${vals.map(v => `<td class="td-num" style="${style}${v < 0 ? 'color:var(--red)' : ''}">${fmt(v)}</td>`).join('')}
-      <td class="td-num" style="${style}font-weight:700;${total < 0 ? 'color:var(--red)' : ''}">${fmt(total)}</td>
+    const rowClass = row.bold ? 'pyg-row-bold' : 'pyg-row-normal';
+
+    return `<tr class="${rowClass}">
+      <td class="${colorClass}">${row.label}</td>
+      ${vals.map(v => `<td class="td-num ${colorClass} ${v < 0 ? 'text-red' : ''}">${fmt(v)}</td>`).join('')}
+      <td class="td-num ${colorClass} ${total < 0 ? 'text-red' : ''}">${fmt(total)}</td>
     </tr>`;
   }).join('');
 }
@@ -843,10 +1023,10 @@ function renderWaterfall(data) {
   }
 
   container.innerHTML = `
-    <div class="card" style="padding-bottom:12px;">
+    <div class="card waterfall-card">
       <div class="card-title">🌉 Cascada de Rentabilidad (Periodo Acumulado)</div>
-      <div style="overflow-x:auto;">
-        <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block;margin:0 auto;">
+      <div class="waterfall-scroll-container">
+        <svg viewBox="0 0 ${W} ${H}" class="waterfall-svg" style="max-width:${W}px;">
           ${svgContent}
         </svg>
       </div>
@@ -887,9 +1067,9 @@ function renderAuditTrail() {
   // Bloque 1: Razones del Motor de Confianza
   const confidence = STATE.analysisResult?.confidence;
   if (confidence && confidence.auditReasons && confidence.auditReasons.length > 0) {
-    html += `<div style="font-size:0.75rem; text-transform:uppercase; color:var(--purple, #a855f7); margin-bottom:8px; font-weight:700;">⚙️ Confidence Engine Log</div>`;
+    html += `<div class="audit-section-header purple">⚙️ Confidence Engine Log</div>`;
     html += confidence.auditReasons.map(reason => `
-      <div style="margin-bottom:4px; padding-left:8px; border-left:2px solid var(--purple, #a855f7); color:var(--text-secondary); font-size:0.85rem;">
+      <div class="audit-reason-item">
         ${reason}
       </div>
     `).join('');
@@ -897,30 +1077,30 @@ function renderAuditTrail() {
 
   // Separador (si hay bloques anteriores y también hay log de sesión)
   if (html !== '' && STATE.auditTrail.length > 0) {
-    html += `<div style="border-top:1px solid var(--border, #334155); margin:12px 0;"></div>`;
+    html += `<div class="audit-divider"></div>`;
   }
 
   // Bloque 2: Registro de Sesión
   if (STATE.auditTrail.length > 0) {
     if (html !== '') {
-      html += `<div style="font-size:0.75rem; text-transform:uppercase; color:var(--cyan, #06b6d4); margin-bottom:8px; font-weight:700;">👤 User Session Log</div>`;
+      html += `<div class="audit-section-header cyan">👤 User Session Log</div>`;
     } else {
       // Si no hay auditReasons, el encabezado se añade igual
-      html += `<div style="font-size:0.75rem; text-transform:uppercase; color:var(--cyan, #06b6d4); margin-bottom:8px; font-weight:700;">👤 User Session Log</div>`;
+      html += `<div class="audit-section-header cyan">👤 User Session Log</div>`;
     }
     
     html += STATE.auditTrail.map(ev => {
       const time = new Date(ev.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      return `<div style="margin-bottom:4px;">
-        <span style="color:var(--cyan, #06b6d4); font-family:var(--font-mono, monospace); font-size:0.78rem;">${time}</span>
-        <strong style="color:var(--text-primary); margin:0 6px;">${ev.action}</strong>
-        <span style="color:var(--text-secondary);">${ev.detail}</span>
+      return `<div class="audit-event-item">
+        <span class="audit-event-time">${time}</span>
+        <strong class="audit-event-action">${ev.action}</strong>
+        <span class="audit-event-detail">${ev.detail}</span>
       </div>`;
     }).join('');
   }
 
   if (html === '') {
-    html = '<span style="opacity:0.5;">Sin eventos registrados.</span>';
+    html = '<span class="audit-empty-state">Sin eventos registrados.</span>';
   }
 
   container.innerHTML = html;
@@ -941,50 +1121,123 @@ const FINDING_RECOMMENDATIONS = {
   'bankability_scaleup':  { impacto: 'La facturación valida un modelo avanzado (>500k).', rec: 'Migrar a BBVA Spark / DayOne + Qonto / Revolut.', accion: 'Diversificación Bancaria', efectoFinanciacion: 'Permite acceder a Venture Debt y financiación Growth.' }
 };
 
-function renderActionableFindings(anomalies) {
-  const section = document.getElementById('actionable-findings-section');
-  const content = document.getElementById('actionable-findings-content');
-  if (!section || !content) return;
-
-  const actionable = anomalies.filter(a => a.severity === 'high' || a.severity === 'critical');
-  if (!actionable.length) {
-    section.style.display = 'none';
-    return;
-  }
-
-  section.style.display = 'block';
-
-  content.innerHTML = `
+function generateActionableFindingsHTML(actionable) {
+  let html = `
     <div class="table-wrap">
-      <table style="font-size:0.82rem;">
+      <table class="findings-table">
         <thead>
           <tr>
-            <th style="width:28px;"></th>
+            <th class="col-icon"></th>
             <th>Hallazgo</th>
-            <th>Impacto</th>
+            <th>Impacto Simplificado</th>
             <th>Efecto en Financiación</th>
             <th>Severidad</th>
             <th>Acción</th>
           </tr>
         </thead>
         <tbody>
-          ${actionable.map((a, i) => {
-            const ruleId = a.id; // Uso directo del ID del contrato (Hardening Fase 5)
-            const rec = FINDING_RECOMMENDATIONS[ruleId] || { impacto: a.detail, efectoFinanciacion: 'Deteriora la credibilidad del análisis.', accion: 'Investigar' };
-            const sevIcon = a.severity === 'critical' ? '⛔' : '🔴';
-            const sevLabel = a.severity === 'critical' ? 'Crítica' : 'Alta';
-            return `<tr>
-              <td>${sevIcon}</td>
-              <td><strong>${a.message}</strong></td>
-              <td style="font-size:0.78rem;">${rec.impacto}</td>
-              <td style="font-size:0.78rem;color:var(--amber);font-weight:600;">${rec.efectoFinanciacion}</td>
-              <td><span style="font-weight:700;color:${a.severity === 'critical' ? 'var(--danger)' : '#fca5a5'}">${sevLabel}</span></td>
-              <td><span style="background:rgba(255,255,255,0.08);padding:3px 8px;border-radius:4px;font-size:0.75rem;">${rec.accion}</span></td>
-            </tr>`;
-          }).join('')}
+  `;
+
+  actionable.forEach((a) => {
+    const ruleId = a.id;
+    const rec = FINDING_RECOMMENDATIONS[ruleId] || { impacto: a.detail, efectoFinanciacion: 'Deteriora la credibilidad del análisis.', accion: 'Investigar', rec: 'Auditar la partida contable correspondiente.' };
+    const sevIcon = a.severity === 'critical' ? '⛔' : '🔴';
+    const sevLabel = a.severity === 'critical' ? 'Crítica' : 'Alta';
+    
+    const compositeKey = 'dash_' + getAnomalyContextKey(a);
+    const isExpanded = STATE.ui.expandedAnomalies.includes(compositeKey);
+    const expandIndicator = `<span class="expand-indicator">▶</span>`;
+
+    html += `
+      <tr class="master-row ${isExpanded ? 'expanded' : ''}" data-composite-key="${compositeKey}">
+        <td>${sevIcon}</td>
+        <td><strong>${expandIndicator} ${a.message}</strong></td>
+        <td class="td-text-small">${rec.impacto}</td>
+        <td class="td-defense-warning">${rec.efectoFinanciacion}</td>
+        <td><span class="severity-badge ${a.severity}">${sevLabel}</span></td>
+        <td><span class="badge-action">${rec.accion}</span></td>
+      </tr>
+    `;
+
+    if (isExpanded) {
+      html += `
+        <tr class="detail-row">
+          <td colspan="6">
+            <div class="detail-container">
+              <div class="detail-block">
+                <span class="detail-label">Impacto Técnico:</span>
+                <span class="detail-value">${a.detail || rec.impacto}</span>
+              </div>
+              <div class="detail-block">
+                <span class="detail-label">Recomendación:</span>
+                <span class="detail-value font-bold text-primary">${rec.rec}</span>
+              </div>
+              <div class="detail-block">
+                <span class="detail-label">Acción Sugerida:</span>
+                <span class="detail-value">${rec.accion}</span>
+              </div>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+  });
+
+  html += `
         </tbody>
       </table>
-    </div>`;
+    </div>
+  `;
+  return html;
+}
+
+function bindActionableFindingsListeners(content) {
+  content.querySelectorAll('.master-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.detail-row')) return;
+      const compositeKey = row.dataset.compositeKey;
+      const index = STATE.ui.expandedAnomalies.indexOf(compositeKey);
+      if (index === -1) {
+        STATE.ui.expandedAnomalies.push(compositeKey);
+      } else {
+        STATE.ui.expandedAnomalies.splice(index, 1);
+      }
+      renderActionableFindings();
+    });
+  });
+}
+
+function renderActionableFindings() {
+  const section = document.getElementById('actionable-findings-section');
+  const content = document.getElementById('actionable-findings-content');
+  if (!section || !content || !STATE.analysisResult) return;
+
+  const anomalies = STATE.analysisResult.anomalies || [];
+  let actionable = anomalies.filter(a => a.severity === 'high' || a.severity === 'critical');
+  
+  // Sincronizar pills activas en Dashboard
+  const dashboardPills = document.querySelectorAll('#dashboard-anomaly-pills .pill-btn');
+  dashboardPills.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.severity === STATE.ui.anomalyFilter);
+  });
+  
+  if (STATE.ui.anomalyFilter !== 'all') {
+    actionable = actionable.filter(a => a.severity === STATE.ui.anomalyFilter);
+  }
+
+  if (!actionable.length) {
+    if (STATE.ui.anomalyFilter === 'all') {
+      section.style.display = 'none';
+    } else {
+      section.style.display = 'block';
+      content.innerHTML = `<div class="findings-empty-state">No hay hallazgos accionables con severidad "${STATE.ui.anomalyFilter}"</div>`;
+    }
+    return;
+  }
+
+  section.style.display = 'block';
+  content.innerHTML = generateActionableFindingsHTML(actionable);
+  bindActionableFindingsListeners(content);
 }
 
 // matchFindingToRule eliminado (Sustituido por mapeo directo de IDs en Fase 5 Hardening)
@@ -1005,22 +1258,108 @@ function renderRulesLibrary() {
   if (!tbody || typeof ANOMALY_RULES === 'undefined') return;
 
   const sevBadge = (sev) => {
-    const colors = { critical: '#ef4444', high: '#fca5a5', medium: '#fcd34d', low: '#6ee7b7' };
     const labels = { critical: 'Crítica', high: 'Alta', medium: 'Media', low: 'Baja' };
-    return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;background:rgba(255,255,255,0.05);color:${colors[sev] || '#94a3b8'};">${labels[sev] || sev}</span>`;
+    return `<span class="rules-sev-badge ${sev}">${labels[sev] || sev}</span>`;
   };
 
   tbody.innerHTML = ANOMALY_RULES.map(rule => `
     <tr>
-      <td><code style="font-size:0.75rem;color:var(--cyan);">${rule.id}</code></td>
-      <td style="font-weight:600;">${rule.label}</td>
+      <td><code class="cuenta-code">${rule.id}</code></td>
+      <td class="font-bold">${rule.label}</td>
       <td>${sevBadge(rule.severity)}</td>
-      <td style="font-size:0.78rem;color:var(--text-secondary);">${RULE_DESCRIPTIONS[rule.id] || '—'}</td>
+      <td class="text-small">${RULE_DESCRIPTIONS[rule.id] || '—'}</td>
     </tr>
   `).join('');
 }
 
+// ---- Funciones de Inicialización de Listeners (Fase 7) ----
+function initPreviewGridListeners() {
+  const searchInput = document.getElementById('preview-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      STATE.ui.entries.filterText = e.target.value;
+      STATE.ui.entries.currentPage = 1; // Reset to page 1
+    });
+  }
+
+  const btnFirst = document.getElementById('btn-page-first');
+  const btnPrev = document.getElementById('btn-page-prev');
+  const btnNext = document.getElementById('btn-page-next');
+  const btnLast = document.getElementById('btn-page-last');
+
+  const getPageCount = () => {
+    const totalItems = STATE.parsedLedger?.entries 
+      ? getPaginatedEntries(STATE.parsedLedger.entries, STATE.ui.entries).totalItems 
+      : 0;
+    return Math.max(1, Math.ceil(totalItems / STATE.ui.entries.pageSize));
+  };
+
+  if (btnFirst) {
+    btnFirst.addEventListener('click', () => {
+      STATE.ui.entries.currentPage = 1;
+    });
+  }
+
+  if (btnPrev) {
+    btnPrev.addEventListener('click', () => {
+      STATE.ui.entries.currentPage = Math.max(1, STATE.ui.entries.currentPage - 1);
+    });
+  }
+
+  if (btnNext) {
+    btnNext.addEventListener('click', () => {
+      const totalPages = getPageCount();
+      STATE.ui.entries.currentPage = Math.min(totalPages, STATE.ui.entries.currentPage + 1);
+    });
+  }
+
+  if (btnLast) {
+    btnLast.addEventListener('click', () => {
+      STATE.ui.entries.currentPage = getPageCount();
+    });
+  }
+
+  const headers = document.querySelectorAll('#preview-table th.clickable-header');
+  headers.forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.column;
+      if (STATE.ui.entries.sortColumn === col) {
+        STATE.ui.entries.sortDirection = STATE.ui.entries.sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        STATE.ui.entries.sortColumn = col;
+        STATE.ui.entries.sortDirection = 'desc'; // Default a descendente
+      }
+      STATE.ui.entries.currentPage = 1; // Volver a la primera página
+    });
+  });
+}
+
+function initPillFilters() {
+  const selectPill = (btn, containerId) => {
+    const sev = btn.dataset.severity;
+    STATE.ui.anomalyFilter = sev;
+    
+    // Sincronizar clases visuales active
+    const pills = document.querySelectorAll(`#${containerId} .pill-btn`);
+    pills.forEach(p => {
+      p.classList.toggle('active', p.dataset.severity === sev);
+    });
+  };
+
+  const uploadPills = document.querySelectorAll('#anomaly-pills .pill-btn');
+  uploadPills.forEach(btn => {
+    btn.addEventListener('click', () => selectPill(btn, 'anomaly-pills'));
+  });
+
+  const dashPills = document.querySelectorAll('#dashboard-anomaly-pills .pill-btn');
+  dashPills.forEach(btn => {
+    btn.addEventListener('click', () => selectPill(btn, 'dashboard-anomaly-pills'));
+  });
+}
+
 // ---- Init ----
+initPreviewGridListeners();
+initPillFilters();
 renderDefensa();
 renderRulesLibrary();
 

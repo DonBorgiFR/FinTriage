@@ -621,3 +621,462 @@ tbody tr:hover td { background: var(--bg-card); color: var(--text-primary); }
   color: #fee2e2;
   border-color: rgba(239, 68, 68, 0.3);
 }
+
+/* ==========================================
+   Fase 7: Data Grids, Pills y Master-Detail
+   ========================================== */
+.clickable-header {
+  cursor: pointer;
+  user-select: none;
+  transition: var(--transition);
+  position: relative;
+  padding-right: 20px !important;
+}
+.clickable-header:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.02);
+}
+.clickable-header.sort-asc::after {
+  content: ' ▲';
+  position: absolute;
+  right: 6px;
+  color: var(--cyan);
+  font-size: 0.7rem;
+}
+.clickable-header.sort-desc::after {
+  content: ' ▼';
+  position: absolute;
+  right: 6px;
+  color: var(--cyan);
+  font-size: 0.7rem;
+}
+
+/* Pills de anomalías */
+.pill-btn {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  outline: none;
+}
+.pill-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  border-color: var(--border-accent);
+}
+.pill-btn.active {
+  background: var(--cyan-dim);
+  color: var(--cyan);
+  border-color: var(--cyan);
+  box-shadow: var(--shadow-subtle);
+}
+.pill-btn[data-severity="critical"].active {
+  background: rgba(153,27,27,0.25);
+  color: #fecaca;
+  border-color: rgba(239,68,68,0.6);
+}
+.pill-btn[data-severity="high"].active {
+  background: rgba(239,68,68,0.15);
+  color: #fca5a5;
+  border-color: rgba(239,68,68,0.5);
+}
+.pill-btn[data-severity="medium"].active {
+  background: rgba(245,158,11,0.15);
+  color: #fcd34d;
+  border-color: rgba(245,158,11,0.5);
+}
+.pill-btn[data-severity="low"].active {
+  background: rgba(16,185,129,0.15);
+  color: #6ee7b7;
+  border-color: rgba(16,185,129,0.5);
+}
+
+/* Master-Detail */
+.master-row {
+  cursor: pointer;
+  transition: var(--transition);
+}
+.master-row:hover td {
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+.master-row .expand-indicator {
+  display: inline-block;
+  transition: transform 0.25s ease;
+  margin-right: 6px;
+  color: var(--text-muted);
+}
+.master-row.expanded .expand-indicator {
+  transform: rotate(90deg);
+  color: var(--cyan);
+}
+
+.detail-row {
+  background: rgba(0, 0, 0, 0.2) !important;
+  animation: slideDownFade 0.25s ease forwards;
+}
+.detail-row td {
+  padding: 16px 24px !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.detail-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+.detail-block {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+}
+.detail-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+.detail-value {
+  line-height: 1.5;
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   APTKI WORKSTATION — UI Cleanup (Fase 7)
+   ============================================ */
+.findings-empty-state {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.02);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.findings-table {
+  font-size: 0.82rem;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.findings-table th.col-icon {
+  width: 28px;
+}
+
+.findings-table .td-text-small {
+  font-size: 0.78rem;
+}
+
+.findings-table .td-defense-warning {
+  font-size: 0.78rem;
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.severity-badge {
+  font-weight: 700;
+}
+
+.severity-badge.critical {
+  color: var(--danger);
+}
+
+.severity-badge.high {
+  color: #fca5a5;
+}
+
+.badge-action {
+  background: rgba(255,255,255,0.08);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+/* Confidence Banner Classes */
+.confidence-banner {
+  display: block;
+  margin-bottom: 20px;
+  border-radius: var(--radius-sm);
+}
+
+.confidence-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.confidence-banner-icon {
+  font-size: 1.2rem;
+}
+
+.confidence-banner-text {
+  font-size: 0.85rem;
+  flex: 1;
+}
+
+.confidence-banner.reservations {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #f59e0b;
+}
+
+.confidence-banner.indicative {
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  color: #f97316;
+}
+
+.confidence-banner.blocked {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+}
+
+/* Accrual and Mapping elements */
+.accrual-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
+
+.mapping-select {
+  width: 100%;
+  padding: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+/* PyG Styling and Ellipsis */
+.td-ellipsis {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#pyg-table th:not(:first-child) {
+  text-align: right;
+}
+
+.pyg-row-bold td {
+  font-weight: 600 !important;
+  border-top: 1px solid var(--border) !important;
+}
+
+.pyg-row-normal td {
+  color: var(--text-secondary);
+}
+
+.text-cyan { color: var(--cyan) !important; }
+.text-amber { color: var(--amber) !important; }
+.text-green { color: var(--green) !important; }
+.text-red { color: var(--red) !important; }
+.kpi-sub.danger-text {
+  color: var(--danger) !important;
+}
+
+.cuenta-code {
+  font-size: 0.8em;
+  color: var(--cyan);
+}
+
+.font-bold {
+  font-weight: bold;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-primary {
+  color: var(--text-primary) !important;
+}
+
+/* Audit Trail Custom Styling Classes */
+.audit-section-header {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.audit-section-header.purple {
+  color: var(--purple, #a855f7);
+}
+.audit-section-header.cyan {
+  color: var(--cyan, #06b6d4);
+}
+
+.audit-reason-item {
+  margin-bottom: 4px;
+  padding-left: 8px;
+  border-left: 2px solid var(--purple, #a855f7);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.audit-divider {
+  border-top: 1px solid var(--border, #334155);
+  margin: 12px 0;
+}
+
+.audit-event-item {
+  margin-bottom: 4px;
+}
+
+.audit-event-time {
+  color: var(--cyan, #06b6d4);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.78rem;
+}
+
+.audit-event-action {
+  color: var(--text-primary);
+  margin: 0 6px;
+}
+
+.audit-event-detail {
+  color: var(--text-secondary);
+}
+
+.audit-empty-state {
+  opacity: 0.5;
+}
+
+/* Rules Library custom classes */
+.text-small {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.rules-sev-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(255,255,255,0.05);
+}
+.rules-sev-badge.critical { color: var(--red) !important; }
+.rules-sev-badge.high { color: #fca5a5 !important; }
+.rules-sev-badge.medium { color: var(--amber) !important; }
+.rules-sev-badge.low { color: #6ee7b7 !important; }
+
+/* ============================================
+   NARRATIVE AND WATERFALL LAYOUT CLASSES (UI CLEANUP)
+   ============================================ */
+
+.narrative-executive-card {
+  margin-top: 24px;
+  border-left: 4px solid var(--purple);
+}
+
+.narrative-header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.narrative-card-title {
+  margin-bottom: 0 !important;
+}
+
+.narrative-copy-btn {
+  font-size: 0.75rem !important;
+  padding: 6px 12px !important;
+}
+
+.narrative-grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.narrative-block-financial {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  padding: 16px;
+  border-radius: var(--radius-sm);
+}
+
+.narrative-title-financial {
+  font-size: 0.75rem;
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.narrative-text-body {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.narrative-block-strategic {
+  background: rgba(124,111,176,0.05);
+  border: 1px solid rgba(124,111,176,0.2);
+  padding: 16px;
+  border-radius: var(--radius-sm);
+}
+
+.narrative-title-strategic {
+  font-size: 0.75rem;
+  color: var(--purple);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.narrative-block-defense {
+  background: rgba(245,158,11,0.04);
+  border: 1px solid rgba(245,158,11,0.20);
+  padding: 16px;
+  border-radius: var(--radius-sm);
+}
+
+.narrative-title-defense {
+  font-size: 0.75rem;
+  color: var(--amber);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+/* Waterfall Chart classes */
+.waterfall-card {
+  padding-bottom: 12px;
+}
+
+.waterfall-scroll-container {
+  overflow-x: auto;
+}
+
+.waterfall-svg {
+  width: 100%;
+  display: block;
+  margin: 0 auto;
+}

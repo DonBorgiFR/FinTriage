@@ -707,8 +707,17 @@ function analyzeLedger(parsedLedger, profileId, customMapping = null, approvedAc
   // Detección de Anomalías Analíticas (Aptki Pro)
   // INMUTABILIDAD: NO mutamos parsedLedger.anomalies. Combinamos en array nuevo.
   const analyzerAnomalies = runAnomalyEngine(entries, pygMensual, categoryMap);
-  const parserIds = new Set(parsedLedger.anomalies.map(a => a.id));
-  const deduplicatedNew = analyzerAnomalies.filter(na => !parserIds.has(na.id));
+  // Nueva lógica de deduplicación contextual (Fase 7)
+  const getAnomalyContextKey = (a) => {
+    const context = a.month || a.cuenta || (a.detail ? a.detail.substring(0, 35).trim() : 'global');
+    return `${a.id}_${context}`;
+  };
+
+  // Generar claves de las anomalías del parser
+  const parserKeys = new Set(parsedLedger.anomalies.map(getAnomalyContextKey));
+
+  // Filtrar las del analyzer que no estén ya en el parser con el mismo contexto contable
+  const deduplicatedNew = analyzerAnomalies.filter(na => !parserKeys.has(getAnomalyContextKey(na)));
   const allAnomalies = [...parsedLedger.anomalies, ...deduplicatedNew];
 
   // Verificar si hay demasiadas anomalías graves para marcar el EBITDA como sospechoso
