@@ -81,7 +81,7 @@ Historial de versiones y evolución del CFO Toolkit de APTKI.
 *   **Módulo de Cartera (`js/cartera.js`)**: Diseñado para el triage determinista y enrutado de múltiples startups de forma paralela.
 *   **Diagnóstico Tridimensional**:
     *   **Nivel 1 (Foco)**: Caja, Deuda Pública, Financiabilidad, Circulante, Costes o Preparación Financiera.
-    *   **Nivel 2 (Bloqueadores)**: Detección automática de contingencias graves (Baja conciliación contable, Deuda fiscal >3.000€, Cuenta corriente con socios >10.000€).
+    *   **Nivel 2 (Bloqueadores)**: Detección automática de contingencias graves (Baja conciliación contable, Deuda fiscal >3.000€, Cuenta corriente con socios 551/550 >3.000€ *(umbral actualizado desde 10.000€ en v1.3.3)*).
     *   **Nivel 3 (Ruta)**: Derivación operativa sugerida (CFO, Fundraising, Financiación Pública, Financiación Bancaria, Gestoría).
 *   **Ficha Handoff Express**: Generación de resúmenes formateados listos para copiar con 1-click al portapapeles.
 *   **Soporte de Persistencia Dual (`js/session.js`)**: Extensión del formato `.aptki` para admitir el modo `"portfolio"` (empaquetado consolidado de múltiples startups) manteniendo compatibilidad transparente con el modo `"single"`.
