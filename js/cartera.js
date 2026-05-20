@@ -66,24 +66,31 @@ function evaluateStartupTriage(startupObj) {
     runway = Number((caja / burnRate).toFixed(1));
   }
 
-  // 2. Evaluar saldos contables críticos de balance
+  // 2. Evaluar saldos contables críticos de balance y señales canónicas de anomalías
   let deudaPublicaTotal = 0; // Grupo 47 neto acreedor (haber - debe > 0 indica pasivo contable)
-  let prestamosSocios = 0;   // Grupo 55 deudor (empresa prestó al socio: debe - haber > 0 es -val)
   let capitalSocial = 0;     // Grupo 10 (Capital)
+  let saldoNeto551 = 0;      // Grupo 551/550 neto (haber - debe)
 
   for (const [cta, val] of Object.entries(saldoCuenta)) {
     if (cta.startsWith('47')) {
       deudaPublicaTotal += val; // haber - debe
-    } else if (cta.startsWith('551') || cta.startsWith('552')) {
-      prestamosSocios += -val; // debe - haber (saldo deudor)
+    } else if (cta.startsWith('551') || cta.startsWith('550')) {
+      saldoNeto551 += val; // haber - debe
     } else if (cta.startsWith('10')) {
       capitalSocial += val; // haber - debe (saldo acreedor)
     }
   }
 
   deudaPublicaTotal = Math.max(0, deudaPublicaTotal);
-  prestamosSocios = Math.max(0, prestamosSocios);
   capitalSocial = Math.max(0, capitalSocial);
+
+  // Determinar importes individuales según el signo neto de la cuenta corriente
+  const prestamosSocios = saldoNeto551 < 0 ? -saldoNeto551 : 0; // Saldo deudor (activo)
+  const socioAcreedor = saldoNeto551 > 0 ? saldoNeto551 : 0;    // Saldo acreedor (pasivo)
+
+  // Señales canónicas del motor de anomalías (convergencia estricta sin duplicidad semántica)
+  const hasAnomalyPrestamosSocios = analysis?.anomalies?.some(a => a.id === 'prestamos_socios') ?? false;
+  const hasAnomalySocioAcreedor = analysis?.anomalies?.some(a => a.id === 'cuenta_551_acreedora') ?? false;
 
   // 3. Estimar DSO y DPO reales por prefijo
   let saldoClientes = 0;
@@ -117,9 +124,12 @@ function evaluateStartupTriage(startupObj) {
   } else if (deudaPublicaTotal > 3000) {
     foco = "Deuda Pública";
     accion = `Regularizar deuda fiscal de ${deudaPublicaTotal.toLocaleString('es-ES')}€ (Grupo 47) o pactar aplazamiento.`;
-  } else if (prestamosSocios > 10000) {
+  } else if (hasAnomalyPrestamosSocios) {
     foco = "Financiabilidad";
-    accion = `Saneamiento de balance: Socios deben devolver préstamo de ${prestamosSocios.toLocaleString('es-ES')}€ (Cuenta 551).`;
+    accion = `Saneamiento de balance: Socios deben devolver préstamo de ${prestamosSocios.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ (Cuenta 551/550).`;
+  } else if (hasAnomalySocioAcreedor) {
+    foco = "Financiabilidad";
+    accion = `Formalización mercantil: Formalizar préstamo por saldo acreedor de ${socioAcreedor.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ (Cuenta 551/550) al 3,25% legal.`;
   } else if (dso > 75 && dso > dpo + 15) {
     foco = "Circulante";
     accion = `Optimización de cobros (DSO ${Math.round(dso)} días vs DPO ${Math.round(dpo)} días). Iniciar Factoring.`;
@@ -136,9 +146,12 @@ function evaluateStartupTriage(startupObj) {
   } else if (deudaPublicaTotal > 3000) {
     bloqueador = "Regularización Deuda Pública";
     accion = `BLOQUEADO por contingencia de ${deudaPublicaTotal.toLocaleString('es-ES')}€ con Hacienda/SS. Liquidar o aplazar deudas.`;
-  } else if (prestamosSocios > 10000) {
+  } else if (hasAnomalyPrestamosSocios) {
     bloqueador = "Saneamiento Socios (Due Diligence)";
-    accion = `BLOQUEADO por préstamo a socios de ${prestamosSocios.toLocaleString('es-ES')}€ en Cuenta 551. Regularizar préstamo.`;
+    accion = `BLOQUEADO por préstamo a socios de ${prestamosSocios.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ en Cuenta 551/550. Regularizar préstamo.`;
+  } else if (hasAnomalySocioAcreedor) {
+    bloqueador = "Saneamiento Socios (Due Diligence)";
+    accion = `BLOQUEADO por aportación no regulada de socios de ${socioAcreedor.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ en Cuenta 551/550. Formalizar contrato.`;
   }
 
   // NIVEL 3: Ruta Sugerida Final
@@ -155,7 +168,7 @@ function evaluateStartupTriage(startupObj) {
     } else if (evaluarElegibilidadPublica(deudaPublicaTotal, trustScore, balance, checklistPct)) {
       ruta = "Financiación Pública";
       accion = "Cumple criterios: Iniciar tramitación expediente ENISA (Crecimiento o Jóvenes Emprendedores).";
-    } else if (runway >= 3 && runway <= 9 && prestamosSocios < 5000) {
+    } else if (runway >= 3 && runway <= 9 && !hasAnomalyPrestamosSocios && !hasAnomalySocioAcreedor) {
       ruta = "Fundraising";
       accion = "Iniciar preparación de deck, estructurar nota puente y activar red de Business Angels.";
     } else if (foco === "Materiales y caso financiero") {

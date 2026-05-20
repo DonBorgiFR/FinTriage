@@ -99,7 +99,7 @@ Para verificar la correcta operatividad del módulo Cartera y las mejoras de Ing
 1.  **Carga Masiva**: Carga múltiples archivos `.aptki` en la sección principal y confirma que la vista cambia a la tabla de Cartera con todas las startups listadas.
 2.  **Verificación de Bloqueos**:
     *   Carga una sesión con deuda en el Grupo 47 > 3.000€ y valida que el sistema marque el bloqueador *"Regularización Deuda Pública"* y lo envíe a la ruta *"Gestoría"*.
-    *   Carga una sesión con saldo deudor en la cuenta 551/552 > 10.000€ y verifica que el bloqueador *"Saneamiento Socios (Due Diligence)"* se active redirigiéndola a *"Gestoría"*.
+    *   Carga una sesión con saldo deudor en la cuenta 551/550 > 3.000€ y verifica que el bloqueador *"Saneamiento Socios (Due Diligence)"* se active redirigiéndola a *"Gestoría / Orden Contable"*.
 3.  **Ficha Handoff**: Haz clic en el botón de portapapeles `📋` en cualquier fila de la tabla y pega el texto en un editor; confirma que muestra los datos de triage exactos.
 4.  **Ingesta SaaS & Heurísticas**: Carga el diario consolidado de FlowMetrics en formato tabla de Excel. Valida que el mapeo del Paso 3 detecte correctamente AWS/GCP como COGS e indique las sugerencias de confianza media (desarrollo freelance) con la clase visual `.row-review-pending` y badges ámbar descriptivos.
 

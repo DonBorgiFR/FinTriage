@@ -72,7 +72,7 @@ Para interpretar correctamente el diagnóstico automatizado de la Workstation:
 | **Runway** | La cantidad de meses de vida que le quedan a la startup basándose en su saldo de caja actual y su ritmo de consumo mensual (Burn Rate). |
 | **Trust Score** | Puntuación de 0 a 100 que mide la consistencia contable del libro diario (penaliza descuadres, uso abusivo de la cuenta puente 555 o variaciones anormales). |
 | **Foco Principal** | La dimensión crítica donde la empresa presenta su mayor vulnerabilidad (Caja, Deuda Pública, Financiabilidad, Circulante, Costes o Caso Financiero). |
-| **Bloqueadores** | Contingencias en balance que impiden iniciar expedientes de financiación (Trust Score < 65%, Deuda Pública > 3.000€ o Cuenta corriente con socios 551 > 10.000€). |
+| **Bloqueadores** | Contingencias en balance que impiden iniciar expedientes de financiación (Trust Score < 65%, Deuda Pública > 3.000€ o Cuenta corriente con socios 551/550 > 3.000€). |
 | **Ruta Sugerida** | El departamento o canal idóneo al que se debe derivar a la startup para mitigar el foco de conflicto (CFO, Fundraising, Financiación Pública, Bancaria o Gestoría). |
 
 ---
@@ -94,7 +94,7 @@ Para interpretar correctamente el diagnóstico automatizado de la Workstation:
 
 Para validar el correcto funcionamiento del sistema en su entorno local, realice estas comprobaciones:
 1.  **Carga Masiva**: Arrastre 3 sesiones `.aptki` individuales y compruebe que se visualizan las 3 startups en la tabla de Cartera de manera reactiva.
-2.  **Prueba de Bloqueo por Cuenta 551**: Asegure que una startup con un préstamo al socio de 12.000€ en su sesión muestra el bloqueador *"Saneamiento Socios (Due Diligence)"* y es asignada a la ruta *"Gestoría / Orden Contable"*.
+2.  **Prueba de Bloqueo por Cuenta 551**: Asegure que una startup con un préstamo al socio de 5.000€ en su sesión muestra el bloqueador *"Saneamiento Socios (Due Diligence)"* y es asignada a la ruta *"Gestoría / Orden Contable"*.
 3.  **Prueba de Bloqueo Fiscal**: Valore que un saldo del Grupo 47 mayor a 3.000€ bloquea la ruta de financiación pública y asigna la startup a *"Gestoría"*.
 4.  **Handoff de Portapapeles**: Copie la Ficha Handoff de una empresa y péguela en un editor de texto. Valide que toda la información coincide con la tabla.
 

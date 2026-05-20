@@ -60,22 +60,23 @@ El sistema bloquea la ruta "Financiación Pública" derivándola a Gestoría de 
 
 ---
 
-## Caso de Prueba 4: Bloqueo por Préstamos a Socios (Cuenta 551 > 10.000€)
+## Caso de Prueba 4: Bloqueo por Relaciones con Socios (Cuenta 551/550 > 3.000€)
 
 ### Objetivo:
-Validar que la regla de bloqueo de Due Diligence por préstamos de la sociedad a directores/socios superiores a 10.000€ absolutos se activa correctamente.
+Validar que la regla de bloqueo de Due Diligence por préstamos de la sociedad a socios o aportaciones transitorias no reguladas superiores a 3.000€ netos en la cuenta 551/550 se activa correctamente.
 
 ### Pasos:
-1. Configurar un libro contable o sesión con un saldo deudor en las subcuentas **551** o **552** de 15.000€.
+1. Configurar un libro contable o sesión con un saldo deudor neto final en la cuenta 551/550 superior a 3.000€ (ej: 5.000€), o bien un saldo acreedor neto final en la cuenta 551/550 superior a 3.000€ (ej: 5.000€).
 2. Cargar el archivo en la Workstation.
 3. Revisar el diagnóstico tridimensional en la tabla ejecutiva de Cartera.
 4. Confirmar que:
    * El campo **Bloqueador** es: *"Saneamiento Socios (Due Diligence)"*.
    * La **Ruta Sugerida** se redirige a: *"Gestoría / Orden Contable"*.
-   * La acción propone el saneamiento de balance y la devolución del préstamo del socio a la sociedad.
+   * En caso de saldo deudor, la acción propone el saneamiento de balance (devolución del préstamo).
+   * En caso de saldo acreedor, la acción propone la formalización contractual de préstamo mercantil devengando intereses al tipo legal del 3,25%.
 
 ### Resultado Esperado:
-La alerta se activa al superar el umbral estricto aprobado de 10.000€ absolutos, impidiendo el enrutamiento a Fundraising o Financiación Pública.
+La alerta se activa al superar el umbral material unificado de 3.000€ (tanto deudor como acreedor) sobre el saldo neto agregado de la cuenta 551/550, impidiendo el enrutamiento a Fundraising o Financiación Pública y derivando preventivamente a Gestoría.
 
 ---
 

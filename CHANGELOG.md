@@ -4,12 +4,21 @@ Historial de versiones y evolución del CFO Toolkit de APTKI.
 
 ---
 
-## [1.3.3] — 2026-05-20 (Fase 2: Gestión de Riesgos de la Cuenta 551 con Socios)
+## [1.3.3] — 2026-05-20 (Fase 2: Gestión de Riesgos de la Cuenta 551 y Microfase de Convergencia)
 
 ### Añadido
-*   **Reglas analíticas de riesgos en Cuenta Corriente con Socios (cta. 551)** en `js/analyzer.js` (`ANOMALY_RULES`):
+*   **Reglas analíticas de riesgos en Cuenta Corriente con Socios (cta. 551/550)** en `js/analyzer.js` (`ANOMALY_RULES`):
     *   `prestamos_socios` (Cuenta 551 Deudora - Alto): Detección de saldos deudores netos acumulados mayores a **3.000 €** en la relación corriente con socios (cta. 551/550). Incluye de forma admisible la cuenta 550 (Titular de la explotación) para compatibilidad con autónomos o startups muy tempranas. Advierte explícitamente que el motor evalúa el saldo neto agregado de la cuenta 551/550, lo cual puede enmascarar compensaciones internas entre diferentes socios si no existen subcuentas individualizadas. Conserva el ID unívoco para preservar la compatibilidad absoluta con `defensa.js` y `narrative.js`.
     *   `cuenta_551_acreedora` (Cuenta 551 Acreedora - Alto): Identificación de saldos acreedores netos acumulados superiores a **3.000 €** en el subgrupo 551/550, alertando sobre la presunción legal de préstamo vinculado. Calcula de forma orientativa y como referencia operativa una estimación del devengo al tipo de interés legal de mercado (3,25% para 2026), retenciones teóricas del 19% trimestrales (Modelo 123) y la obligación informativa del Modelo 232 si supera el límite de 250.000 €.
+
+### Modificado/Sincronizado (Microfase de Convergencia)
+*   **Alineamiento del Módulo de Cartera (`js/cartera.js`)**:
+    *   Consumo directo y canónico de las señales del motor de anomalías centralizado (`analysis.anomalies`) para detectar los riesgos `prestamos_socios` y `cuenta_551_acreedora`.
+    *   Eliminación del antiguo umbral heredado de **10.000 €** para la Cuenta 551, estableciendo el umbral unificado de **3.000 €** para relaciones con socios.
+    *   Sincronización tridimensional del triage: el saldo neto deudor activa el foco de Financiabilidad y el bloqueador de Saneamiento Socios (Due Diligence); el saldo neto acreedor activa el foco de Financiabilidad y el bloqueador de Saneamiento Socios requiriendo formalización mercantil contractual al tipo de interés legal del 3,25%. Ambos enrutan obligatoriamente a la startup a **Gestoría / Orden Contable**.
+*   **Actualización Documental y QA**:
+    *   Purga completa de los umbrales heredados de 10.000 € en el Glosario y en la guía operativa (`docs/user_guide.md`).
+    *   Rediseño del **Caso de Prueba 4** en `docs/manual_validation.md` para probar de manera cruzada y dual los saldos deudores y acreedores mayores a 3.000 €.
 
 
 ---

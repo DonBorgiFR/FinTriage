@@ -125,15 +125,23 @@ function detectCashflowLeaks(data) {
     });
   }
 
-  // 3. Fuga por Préstamos a Socios (Grupo 55)
+  // 3. Fuga por Préstamos a Socios (Cuenta 551/550)
   const hasPrestamoSocio = Array.isArray(data.anomalies) && data.anomalies.some(a => a?.id === 'prestamos_socios');
   if (hasPrestamoSocio) {
-    const saldoSocio = Math.abs(t.saldoCuenta?.['55'] || 10000);
+    let saldoNeto551 = 0;
+    if (t.saldoCuenta) {
+      for (const [cta, val] of Object.entries(t.saldoCuenta)) {
+        if (cta.startsWith('551') || cta.startsWith('550')) {
+          saldoNeto551 += val;
+        }
+      }
+    }
+    const saldoSocio = Math.abs(saldoNeto551) || 3000;
     leaks.push({
       id: 'prestamos_socios',
       severity: 'high',
       title: 'Fuga de fondos por préstamos encubiertos a socios',
-      desc: `Se ha detectado una salida neta de **${saldoSocio.toLocaleString('es-ES')}€** en cuentas del Grupo 55 (cuenta corriente con socios/administradores).`,
+      desc: `Se ha detectado una salida neta de **${saldoSocio.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€** en la cuenta de relaciones con socios (cta. 551/550).`,
       action: 'Firmar contrato formal de préstamo socio con interés de mercado para justificar ante comités y planificar el retorno de estos fondos a la caja de la startup.'
     });
   }
@@ -281,14 +289,41 @@ function buildContextualTalkingPoints(data) {
     }
   }
 
-  // 2. Préstamos a socios (55)
+  // 2. Préstamos a socios (551/550 Deudora)
   if (Array.isArray(data.anomalies) && data.anomalies.some(a => a?.id === 'prestamos_socios')) {
-    const saldo = Math.abs(t.saldoCuenta?.['55'] || 10000);
+    let saldoNeto551 = 0;
+    if (t.saldoCuenta) {
+      for (const [cta, val] of Object.entries(t.saldoCuenta)) {
+        if (cta.startsWith('551') || cta.startsWith('550')) {
+          saldoNeto551 += val;
+        }
+      }
+    }
+    const saldo = Math.abs(saldoNeto551) || 3000;
     points.push({
       type: 'high',
       icon: '🔴',
-      question: 'Hemos detectado en su balance saldos significativos de préstamos a socios/administradores (Grupo 55) por valor de ' + Math.round(saldo).toLocaleString('es-ES') + '€. ¿A qué corresponde esto?',
-      answer: `**Estrategia de Defensa:** "Corresponde a saldos corporativos transitorios por gastos de representación y viajes de negocio del equipo fundador pendientes de justificación de tiques, así como anticipos por necesidades operativas puntuales. Para garantizar el orden contable riguroso, hemos formalizado este saldo mediante un **Contrato Civil de Préstamo con intereses a tipo legal de mercado**. No obstante, el compromiso de los socios es liquidar esta cuenta corriente o compensarla mediante dividendos aprobados antes del cierre del presente ejercicio fiscal, garantizando que el 100% de la caja de la financiación se aplique al crecimiento operativo de la compañía."`
+      question: 'Hemos detectado en su balance saldos significativos de préstamos a socios/administradores (cta. 551/550 deudora) por valor de ' + Math.round(saldo).toLocaleString('es-ES') + '€. ¿A qué corresponde esto?',
+      answer: `**Estrategia de Defensa:** "Corresponde a saldos corporativos transitorios por gastos de representación y viajes de negocio del equipo fundador pendientes de justificación de tiques, así como anticipos por necesidades operativas puntuales. Para garantizar el orden contable riguroso, hemos formalizado este saldo mediante un **Contrato Civil de Préstamo con intereses a tipo de interés de mercado**. No obstante, el compromiso de los socios es liquidar esta cuenta corriente o compensarla mediante dividendos aprobados antes del cierre del presente ejercicio fiscal, garantizando que el 100% de la caja de la financiación se aplique al crecimiento operativo de la compañía."`
+    });
+  }
+
+  // 2.2. Aportación de socios acreedora (551/550 Acreedora)
+  if (Array.isArray(data.anomalies) && data.anomalies.some(a => a?.id === 'cuenta_551_acreedora')) {
+    let saldoNeto551 = 0;
+    if (t.saldoCuenta) {
+      for (const [cta, val] of Object.entries(t.saldoCuenta)) {
+        if (cta.startsWith('551') || cta.startsWith('550')) {
+          saldoNeto551 += val;
+        }
+      }
+    }
+    const saldo = Math.abs(saldoNeto551) || 3000;
+    points.push({
+      type: 'high',
+      icon: '🔴',
+      question: 'Vemos en su pasivo una aportación o saldo acreedor en la cuenta corriente de socios (cta. 551/550 acreedora) de ' + Math.round(saldo).toLocaleString('es-ES') + '€. ¿Por qué no está capitalizado?',
+      answer: `**Estrategia de Defensa:** "Esta cuenta refleja aportaciones dinerarias temporales que los fundadores hemos inyectado para dar soporte al circulante en fases iniciales del plan de desarrollo. Para cumplir de forma impecable con el marco contable y fiscal español, estas aportaciones están respaldadas por un **contrato de préstamo mercantil regulando el devengo del tipo de interés legal (3,25% en 2026)** y realizamos las retenciones correspondientes (Modelo 123). No obstante, para optimizar el balance y la Due Diligence ante esta ronda, el compromiso formal de los socios es capitalizar este saldo neto mediante una ampliación de capital por compensación de créditos antes del cierre del ejercicio o formalizarlo como aportación a patrimonio neto a fondo perdido (cuenta 118), eliminando el pasivo corriente del balance de la startup."`
     });
   }
 
@@ -486,7 +521,7 @@ function renderSimuladorForm(root) {
             </label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:normal; cursor:pointer;">
               <input type="checkbox" id="sim-flag-socios" style="width:16px;height:16px;accent-color:var(--cyan);" />
-              ¿Tiene préstamos o saldos deudores de socios (Grupo 55 >10k€)?
+              ¿Tiene préstamos o saldos deudores de socios (Cuenta 551/550 >3.000€)?
             </label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:normal; cursor:pointer;">
               <input type="checkbox" id="sim-flag-cliente" style="width:16px;height:16px;accent-color:var(--cyan);" />
@@ -556,8 +591,8 @@ function buildMockAnalysisResultFromSim(inputs) {
     saldoCuenta['475'] = 25000;
   }
   if (inputs.socios) {
-    anomalies.push({ id: 'prestamos_socios', severity: 'high', message: 'Fuga de capital a socios (Grupo 55)', detail: 'Saldo deudor simulado del Grupo 55' });
-    saldoCuenta['55'] = -15000;
+    anomalies.push({ id: 'prestamos_socios', severity: 'high', message: 'Riesgo Fiscal: Cuenta 551 Deudora', detail: 'Saldo deudor simulado de la cuenta corriente con socios (551/550)' });
+    saldoCuenta['55100000'] = -5000;
   }
   if (inputs.cliente) {
     anomalies.push({ id: 'cliente_unico', severity: 'high', message: 'Concentración de cliente único', detail: 'Más del 70% de ingresos en una sola cuenta simulada' });

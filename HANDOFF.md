@@ -16,11 +16,12 @@
   - **Fórmula de Crisis CDTI Blindada:** Integración de la regla de exclusión de ayudas de la UE (Reglamento 651/2014) sobre fondos propios netos ajustados (excluyendo subvenciones de capital del grupo 13).
   - **Quiebra Técnica LSC:** Evaluación automática de causa legal de disolución según el Art. 363.1.e de la Ley de Sociedades de Capital (LSC) para patrimonio neto total inferior al 50% del Capital Social.
   - **EBITDA Orgánico ENISA:** Purgado y cálculo del EBITDA normalizado tras deducir activaciones de I+D (cta. 730) y subvenciones de capital imputadas a resultados (cta. 746) para simular el rating del analista financiero público.
-- **Gestión de Riesgos de la Cuenta 551 con Socios (Fase 2):**
+- **Gestión de Riesgos de la Cuenta 551 con Socios (Fase 2 y Microfase de Convergencia):**
   - **Divergencia Deudora/Acreedora:** Separación analítica de la cuenta corriente con socios y administradores (cta. 551) y titular de la explotación (cta. 550) en base a su signo contable final (deudor vs. acreedor).
   - **Inclusión Admisible de la Cuenta 550:** Se analiza conjuntamente la cuenta 550 junto a la 551 dado que en autónomos societarios, empresarios individuales o en startups en etapas muy incipientes, es habitual clasificar transitoriamente o por error las relaciones socios-empresa en la 550 antes de la constitución de la SL.
   - **Umbral Material y Limitación por Netting:** Implementación de un límite de materialidad de **3.000 €** acumulado final para evitar falsos positivos por pequeños desembolsos transitorios. Se explicita técnicamente que el motor evalúa el *saldo neto agregado de la cuenta*, lo cual podría enmascarar compensaciones internas cruzadas entre socios (ej. Socio A deudor y Socio B acreedor) si no existen subcuentas contables debidamente individualizadas a 4 o más dígitos.
   - **Modelado Tributario Orientativo:** Provisión de referencia y estimación orientativa (no liquidación cerrada) del devengo de intereses vinculados bajo el tipo legal vigente (3.25% en 2026), estimando la retención del 19% trimestral (Modelo 123) y la declaración informativa vinculada (Modelo 232) si se superan los 250.000 €.
+  - **Convergencia y Única Fuente de Verdad:** Se alineó el motor de triage de la cartera (`cartera.js`) para consumir directamente las señales canónicas (`analysis.anomalies`) producidas por `analyzer.js`. Se erradicaron todas las referencias a umbrales heredados de 10.000 € y se sincronizó el bloqueo dual (deudor/acreedor) redirigiendo a la ruta unificada de **Gestoría / Orden Contable**. Toda la documentación y planes de validación manual se sincronizaron con estas directrices.
 
 
 ## 2. Robustez de Fase 7 (Micro Sprint de Calidad)

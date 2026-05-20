@@ -53,7 +53,7 @@ graph TD
 
 ### 3. Motor de Triage Contable y Routing (`js/cartera.js`)
 *   **Problema Principal (Foco)**: Evalúa el estado de salud financiera en base a umbrales estrictos de Runway, Deuda Pública (Grupo 47 neto), Préstamos a Socios (Cta 551/552) y Circulante (DSO/DPO agregados por prefijo).
-*   **Bloqueadores de Financiación**: Determina si existen contingencias que impiden iniciar expedientes de financiación (Trust Score < 65%, Deuda Pública > 3000€, Préstamos a Socios > 10.000€).
+*   **Bloqueadores de Financiación**: Determina si existen contingencias que impiden iniciar expedientes de financiación (Trust Score < 65%, Deuda Pública > 3000€, Cuenta corriente con socios 551/550 > 3000€).
 *   **Routing Inteligente**: Asigna a cada startup una ruta sugerida (CFO, Fundraising, Financiación Pública, Financiación Bancaria, Gestoría/Orden Contable) y propone la acción correctiva inmediata.
 *   **Score de Prioridad**: Calcula una métrica de 0 a 100 y asigna un semáforo de urgencia (🔴 Rojo, 🟡 Amarillo, 🟢 Verde) para que el consultor focalice su atención.
 
