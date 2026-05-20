@@ -17,9 +17,11 @@
   - **Quiebra Técnica LSC:** Evaluación automática de causa legal de disolución según el Art. 363.1.e de la Ley de Sociedades de Capital (LSC) para patrimonio neto total inferior al 50% del Capital Social.
   - **EBITDA Orgánico ENISA:** Purgado y cálculo del EBITDA normalizado tras deducir activaciones de I+D (cta. 730) y subvenciones de capital imputadas a resultados (cta. 746) para simular el rating del analista financiero público.
 - **Gestión de Riesgos de la Cuenta 551 con Socios (Fase 2):**
-  - **Divergencia Deudora/Acreedora:** Separación analítica estricta de la cuenta corriente con socios y administradores (cta. 551/550) en base a su signo contable final (deudor vs. acreedor).
-  - **Umbral Material de Seguridad:** Implementación de un límite de materialidad de **3.000 €** acumulado final para mitigar falsos positivos originados por pequeños reembolsos de gastos o partidas transitorias.
-  - **Modelado Tributario Preventivo:** Cálculo dinámico y preventivo del devengo de intereses vinculados bajo el tipo legal vigente (3.25% en 2026), estimando la retención del 19% (Modelo 123 trimestral) y la declaración informativa de transacciones vinculadas (Modelo 232) si se superan los 250.000 €.
+  - **Divergencia Deudora/Acreedora:** Separación analítica de la cuenta corriente con socios y administradores (cta. 551) y titular de la explotación (cta. 550) en base a su signo contable final (deudor vs. acreedor).
+  - **Inclusión Admisible de la Cuenta 550:** Se analiza conjuntamente la cuenta 550 junto a la 551 dado que en autónomos societarios, empresarios individuales o en startups en etapas muy incipientes, es habitual clasificar transitoriamente o por error las relaciones socios-empresa en la 550 antes de la constitución de la SL.
+  - **Umbral Material y Limitación por Netting:** Implementación de un límite de materialidad de **3.000 €** acumulado final para evitar falsos positivos por pequeños desembolsos transitorios. Se explicita técnicamente que el motor evalúa el *saldo neto agregado de la cuenta*, lo cual podría enmascarar compensaciones internas cruzadas entre socios (ej. Socio A deudor y Socio B acreedor) si no existen subcuentas contables debidamente individualizadas a 4 o más dígitos.
+  - **Modelado Tributario Orientativo:** Provisión de referencia y estimación orientativa (no liquidación cerrada) del devengo de intereses vinculados bajo el tipo legal vigente (3.25% en 2026), estimando la retención del 19% trimestral (Modelo 123) y la declaración informativa vinculada (Modelo 232) si se superan los 250.000 €.
+
 
 ## 2. Robustez de Fase 7 (Micro Sprint de Calidad)
 - **DSO/DPO Real Restaurado:** Se corrigió el bug de cálculo real. Se implementó una agregación robusta por prefijo contable (`43` para deudores, `40` para acreedores) sobre el mapa de subcuentas consolidado, invirtiendo el signo para clientes (saldo deudor) para adecuarse a la convención `haber - debe` de `analyzer.js`.

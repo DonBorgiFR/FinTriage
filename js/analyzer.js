@@ -492,6 +492,13 @@ const ANOMALY_RULES = [
     severity: 'high',
     label: 'Riesgo Fiscal: Cuenta 551 Deudora',
     check: (entries, pygMensual, categoryMap) => {
+      // APTKI ANALYTICAL NOTE: Se consolidan las cuentas 551 (Cuenta corriente con socios y administradores)
+      // y 550 (Titular de la explotación). La 550 es típica de empresarios individuales / autónomos,
+      // pero en startups en fases tempranas es común encontrarla de forma transitoria o errónea
+      // antes de constituir formalmente la SL, considerándose admisible su análisis conjunto aquí.
+      // ADVERTENCIA DE AGREGACIÓN: Se evalúa el saldo neto agregado. Esto puede ocultar compensaciones cruzadas
+      // (ej. Socio A deudor de 5.000€ y Socio B acreedor de 5.000€, resultando en saldo neto 0€),
+      // por lo que se advierte al CFO de la necesidad de auditar subcuentas individualizadas.
       const cta551 = saldoCuenta(entries, ['551', '550']);
       const saldoNeto = cta551.debe - cta551.haber; // Saldo deudor (activo)
 
@@ -499,7 +506,7 @@ const ANOMALY_RULES = [
         return [{
           severity: 'high',
           message: 'Riesgo Fiscal: Cuenta 551 Deudora (Socio Deudor)',
-          detail: `Se detecta un saldo deudor neto final de ${saldoNeto.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ en la cuenta corriente con socios (cta. 551/550). La AEAT mantiene un criterio de inspección riguroso sobre estos saldos deudores persistentes, pudiendo recalificarlos como distribuciones de dividendos encubiertas o encubrir préstamos no declarados, con la consecuente liquidación de retenciones a cuenta de IRPF (hasta el 28%) y sanciones del 50%-150% a la empresa. Se aconseja formalizar un contrato de préstamo a tipo de interés legal o reintegrar el capital antes del cierre del ejercicio fiscal.`
+          detail: `Se detecta un saldo deudor neto final de ${saldoNeto.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ en la cuenta corriente con socios (cta. 551/550). La AEAT mantiene un criterio de inspección riguroso sobre estos saldos deudores persistentes, pudiendo recalificarlos como distribuciones de dividendos encubiertas o préstamos no declarados, con la consecuente liquidación de retenciones a cuenta de IRPF (hasta el 28%) y sanciones del 50%-150% a la empresa. Nota: Al evaluar el saldo neto agregado de la cuenta 551/550, este análisis podría enmascarar compensaciones internas entre diferentes socios si no existen subcuentas debidamente individualizadas. Se aconseja formalizar un contrato de préstamo a tipo de interés legal o reintegrar el capital antes del cierre fiscal.`
         }];
       }
       return [];
@@ -510,6 +517,9 @@ const ANOMALY_RULES = [
     severity: 'high',
     label: 'Riesgo Fiscal: Cuenta 551 Acreedora',
     check: (entries, pygMensual, categoryMap) => {
+      // APTKI ANALYTICAL NOTE: Se consolidan las cuentas 551 y 550.
+      // ADVERTENCIA DE AGREGACIÓN: Se evalúa el saldo neto agregado de la 551/550, pudiendo ocultar
+      // compensaciones cruzadas entre socios.
       const cta551 = saldoCuenta(entries, ['551', '550']);
       const saldoNeto = cta551.haber - cta551.debe; // Saldo acreedor (pasivo)
 
@@ -519,7 +529,7 @@ const ANOMALY_RULES = [
         return [{
           severity: 'high',
           message: 'Operaciones Vinculadas: Cuenta 551 Acreedora (Socio Acreedor)',
-          detail: `Existe un saldo acreedor neto final de ${saldoNeto.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ en la cuenta de relaciones con socios (cta. 551/550). A efectos fiscales, esta aportación transitoria de fondos se presume como un préstamo vinculado. Exige formalizar contrato de préstamo mercantil y el devengo periódico de intereses al tipo legal del dinero (3,25% en 2026: ~${interesLegal.toLocaleString('es-ES', {maximumFractionDigits: 0})}€/año), sujeto a una retención trimestral del 19% liquidable en el Modelo 123 (~${retencionEstimada.toLocaleString('es-ES', {maximumFractionDigits: 0})}€/año). Superar un saldo de 250.000€ obliga adicionalmente a su declaración informativa en el Modelo 232.`
+          detail: `Existe un saldo acreedor neto final de ${saldoNeto.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ en la cuenta de relaciones con socios (cta. 551/550). A efectos fiscales, esta aportación transitoria de fondos se presume como un préstamo vinculado. Esto exige formalizar contrato de préstamo mercantil y el devengo de intereses al tipo legal del dinero (3,25% en 2026). A modo de estimación orientativa y como referencia operativa para el CFO, esto implicaría un devengo aproximado de ~${interesLegal.toLocaleString('es-ES', {maximumFractionDigits: 0})}€/año de intereses, sujeto a una retención teórica del 19% liquidable en el Modelo 123 (~${retencionEstimada.toLocaleString('es-ES', {maximumFractionDigits: 0})}€/año). Nota: Al evaluar el saldo neto agregado de la cuenta 551/550, este análisis podría enmascarar compensaciones internas entre diferentes socios si no existen subcuentas debidamente individualizadas. Superar un saldo de 250.000€ obliga adicionalmente a su declaración informativa en el Modelo 232.`
         }];
       }
       return [];

@@ -8,8 +8,9 @@ Historial de versiones y evolución del CFO Toolkit de APTKI.
 
 ### Añadido
 *   **Reglas analíticas de riesgos en Cuenta Corriente con Socios (cta. 551)** en `js/analyzer.js` (`ANOMALY_RULES`):
-    *   `prestamos_socios` (Cuenta 551 Deudora - Alto): Detección de saldos deudores netos acumulados mayores a **3.000 €** en la relación corriente con socios (cta. 551/550), orientada a prevenir sanciones por distribuciones de dividendo encubierto o presunciones de fuga de capital por parte de la AEAT. Conserva el ID unívoco para preservar la compatibilidad absoluta con el Cockpit de Defensa (`defensa.js`) y el módulo de Narrativa (`narrative.js`).
-    *   `cuenta_551_acreedora` (Cuenta 551 Acreedora - Alto): Identificación de saldos acreedores netos acumulados superiores a **3.000 €** en el subgrupo 551/550, alertando sobre la presunción legal de préstamo vinculado. Calcula dinámicamente la provisión del devengo al tipo de interés legal de mercado (3,25% para 2026), retenciones del 19% trimestrales (Modelo 123) y la obligación informativa del Modelo 232 si supera el límite de 250.000 €.
+    *   `prestamos_socios` (Cuenta 551 Deudora - Alto): Detección de saldos deudores netos acumulados mayores a **3.000 €** en la relación corriente con socios (cta. 551/550). Incluye de forma admisible la cuenta 550 (Titular de la explotación) para compatibilidad con autónomos o startups muy tempranas. Advierte explícitamente que el motor evalúa el saldo neto agregado de la cuenta 551/550, lo cual puede enmascarar compensaciones internas entre diferentes socios si no existen subcuentas individualizadas. Conserva el ID unívoco para preservar la compatibilidad absoluta con `defensa.js` y `narrative.js`.
+    *   `cuenta_551_acreedora` (Cuenta 551 Acreedora - Alto): Identificación de saldos acreedores netos acumulados superiores a **3.000 €** en el subgrupo 551/550, alertando sobre la presunción legal de préstamo vinculado. Calcula de forma orientativa y como referencia operativa una estimación del devengo al tipo de interés legal de mercado (3,25% para 2026), retenciones teóricas del 19% trimestrales (Modelo 123) y la obligación informativa del Modelo 232 si supera el límite de 250.000 €.
+
 
 ---
 
