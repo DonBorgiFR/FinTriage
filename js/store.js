@@ -77,7 +77,7 @@ class ReactiveStore {
       const isMappable = value !== null && typeof value === 'object' && 
                          (Array.isArray(value) || value.constructor === Object);
       if (isMappable) {
-        target[key] = this._createDeepProxy(value, callback, key);
+        target[key] = this._createDeepProxy(value, callback, path ? `${path}.${key}` : key);
       }
     }
 
