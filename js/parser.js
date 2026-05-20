@@ -7,10 +7,10 @@
  *   - Columnas: Fecha | Asiento/Nº | Cuenta | Concepto/Descripción | Debe | Haber
  *
  * Output (objeto `ParsedLedger`):
- *   meta       → nombre fichero, meses, nº asientos, cuentas únicas
+ *   meta       → nombre fichero, meses, nº asientos, cuentas únicas, parserTrace
  *   entries    → array plano de todos los asientos normalizados
  *   byMonth    → asientos agrupados por mes (clave YYYY-MM)
- *   anomalies  → array de { severity, message, detail }
+ *   anomalies  → array vacío (migrado de forma pura a analyzer.js)
  */
 
 const MONTH_NAMES = {
@@ -47,11 +47,23 @@ function normalizeHeader(h) {
 
 function detectColumn(headers, candidates) {
   const normalized = headers.map(normalizeHeader);
+  
+  // Step 1: Try exact matching for all candidates
   for (const rawCand of candidates) {
     const cand = normalizeHeader(rawCand);
-    const idx = normalized.findIndex(h => h === cand || (cand.length >= 3 && h.includes(cand)));
+    const idx = normalized.findIndex(h => h === cand);
     if (idx !== -1) return idx;
   }
+  
+  // Step 2: Try partial matching (substring) if no exact match is found
+  for (const rawCand of candidates) {
+    const cand = normalizeHeader(rawCand);
+    if (cand.length >= 3) {
+      const idx = normalized.findIndex(h => h.includes(cand));
+      if (idx !== -1) return idx;
+    }
+  }
+  
   return -1;
 }
 
@@ -154,22 +166,75 @@ function detectMonthFromSheetName(name) {
   return null;
 }
 
+/**
+ * Evalúa una fila contable asignando pesos según palabras clave.
+ * Debe y Haber = +3 puntos. Fecha, Cuenta, Concepto = +1 punto.
+ */
+function scoreRowForHeaders(row) {
+  if (!row || !Array.isArray(row)) return 0;
+  let score = 0;
+  for (const cell of row) {
+    if (cell === null || cell === undefined) continue;
+    const norm = normalizeHeader(cell);
+    
+    if (COL_CANDIDATES.debe.map(normalizeHeader).includes(norm)) {
+      score += 3;
+    } else if (COL_CANDIDATES.haber.map(normalizeHeader).includes(norm)) {
+      score += 3;
+    } else if (COL_CANDIDATES.fecha.map(normalizeHeader).includes(norm)) {
+      score += 1;
+    } else if (COL_CANDIDATES.cuenta.map(normalizeHeader).includes(norm)) {
+      score += 1;
+    } else if (COL_CANDIDATES.descripcion.map(normalizeHeader).includes(norm)) {
+      score += 1;
+    }
+  }
+  return score;
+}
+
 // ---- Parser principal ----
 function parseSheetRows(rows, sheetName, fallbackMonth, logFn) {
-  if (!rows || rows.length === 0) return [];
+  if (!rows || rows.length === 0) {
+    return {
+      entries: [],
+      trace: {
+        sheetName,
+        headerRowIndex: -1,
+        rawHeaders: [],
+        normalizedHeaders: [],
+        status: "discarded",
+        discardReason: "La hoja está vacía"
+      }
+    };
+  }
 
-  // Buscar cabecera de forma dinámica y tolerante (saltando metadatos iniciales)
+  // Buscar cabecera de forma dinámica utilizando puntuación de palabras clave contables (primeras 20 filas)
   let headerRowIdx = 0;
-  let bestCount = 0;
-  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+  let maxScore = -1;
+  let fallbackRowIdx = 0;
+  let fallbackBestCount = 0;
+
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
     const row = rows[i];
     if (!row) continue;
-    // Evaluamos celdas que NO sean nulas y que al hacerles trim() no estén vacías
-    const nonEmpty = row.filter(c => c !== null && c !== undefined && String(c).trim() !== '').length;
-    if (nonEmpty > bestCount) {
-      bestCount = nonEmpty;
+
+    const score = scoreRowForHeaders(row);
+    if (score > maxScore) {
+      maxScore = score;
       headerRowIdx = i;
     }
+
+    // Fallback clásico basado en conteo de no-vacíos
+    const nonEmpty = row.filter(c => c !== null && c !== undefined && String(c).trim() !== '').length;
+    if (nonEmpty > fallbackBestCount) {
+      fallbackBestCount = nonEmpty;
+      fallbackRowIdx = i;
+    }
+  }
+
+  // Si la puntuación máxima de cabeceras es 0, usamos el fallback clásico
+  if (maxScore <= 0) {
+    headerRowIdx = fallbackRowIdx;
   }
 
   const headers = (rows[headerRowIdx] || []).map(h => String(h || ''));
@@ -182,7 +247,17 @@ function parseSheetRows(rows, sheetName, fallbackMonth, logFn) {
 
   if (colDebe === -1 || colHaber === -1) {
     logFn(`warn|Hoja "${sheetName}": no se encontraron columnas Debe/Haber — omitida`);
-    return [];
+    return {
+      entries: [],
+      trace: {
+        sheetName,
+        headerRowIndex: headerRowIdx,
+        rawHeaders: headers,
+        normalizedHeaders: headers.map(normalizeHeader),
+        status: "discarded",
+        discardReason: "No se encontraron columnas Debe/Haber"
+      }
+    };
   }
   if (colCuenta === -1) {
     logFn(`warn|Hoja "${sheetName}": no se encontró columna Cuenta — intentando continuar`);
@@ -193,8 +268,6 @@ function parseSheetRows(rows, sheetName, fallbackMonth, logFn) {
     const row = rows[i];
     if (!row) continue;
 
-    // Aquí las funciones parseNumber se encargan de sanear, purificar y extraer 
-    // previniendo DBNulls de forma automática.
     const debe  = parseNumber(row[colDebe]);
     const haber = parseNumber(row[colHaber]);
     if (debe === 0 && haber === 0) continue; 
@@ -204,7 +277,7 @@ function parseSheetRows(rows, sheetName, fallbackMonth, logFn) {
     if (!cuenta) continue;
 
     const rawFecha = colFecha >= 0 ? row[colFecha] : null;
-    const fecha = parseDate(rawFecha); // Aplicando offset y epoch safe
+    const fecha = parseDate(rawFecha);
     const monthKey = toMonthKey(fecha, fallbackMonth);
 
     const desc = colDesc >= 0 ? String(row[colDesc] || '').trim() : '';
@@ -224,142 +297,17 @@ function parseSheetRows(rows, sheetName, fallbackMonth, logFn) {
     });
   }
 
-  return entries;
-}
-
-// ---- Detección de anomalías (Inmutable) ----
-function detectAnomalies(entries, byMonth) {
-  const anomalies = [];
-  const months = Object.keys(byMonth).sort();
-
-  // 1. Descuadre Contable por Materialidad Relativa
-  for (const mk of months) {
-    const grp = byMonth[mk];
-    const totalDebe  = grp.reduce((s, e) => s + e.debe, 0);
-    const totalHaber = grp.reduce((s, e) => s + e.haber, 0);
-    const diff = Math.abs(totalDebe - totalHaber);
-    const volumenMes = totalDebe > 0 ? totalDebe : 1; // Evitar división por cero
-
-    if (diff > 0.02) { // Ignorar céntimos (tolerancia de redondeo absoluto)
-      if (diff <= 10.00 && (diff / volumenMes) <= 0.0001) {
-        anomalies.push({
-          id: 'descuadre_contable',
-          severity: 'low',
-          month: mk,
-          message: `Diferencia menor por redondeo en ${mk}`,
-          detail: `Descuadre insignificante de ${diff.toFixed(2)}€ (dentro del 0.01% del volumen del mes).`
-        });
-      } else if (diff <= 100.00 && (diff / volumenMes) <= 0.001) {
-        anomalies.push({
-          id: 'descuadre_contable',
-          severity: 'medium',
-          month: mk,
-          message: `Descuadre leve en ${mk}`,
-          detail: `Diferencia no material de ${diff.toFixed(2)}€ (dentro del 0.1% del volumen del mes).`
-        });
-      } else if (diff > 1000.00 || (diff / volumenMes) > 0.01) {
-        anomalies.push({
-          id: 'descuadre_contable',
-          severity: 'critical',
-          month: mk,
-          message: `Descuadre contable crítico en ${mk}`,
-          detail: `Diferencia crítica de ${diff.toFixed(2)}€ (superior al 1.0% del volumen o >1000€). Invalida la integridad del mes.`
-        });
-      } else {
-        anomalies.push({
-          id: 'descuadre_contable',
-          severity: 'high',
-          month: mk,
-          message: `Descuadre contable relevante en ${mk}`,
-          detail: `Diferencia material de ${diff.toFixed(2)}€ (Debe=${totalDebe.toFixed(2)}€, Haber=${totalHaber.toFixed(2)}€).`
-        });
-      }
+  return {
+    entries,
+    trace: {
+      sheetName,
+      headerRowIndex: headerRowIdx,
+      rawHeaders: headers,
+      normalizedHeaders: headers.map(normalizeHeader),
+      status: "success",
+      discardReason: null
     }
-  }
-
-  // 2. Amortizaciones Recurrentes vs Criterio Concentrado a Revisar
-  const monthsWithAmort = months.filter(mk =>
-    byMonth[mk].some(e => e.cuenta.startsWith('68'))
-  );
-  const monthsWithoutAmort = months.filter(mk =>
-    !byMonth[mk].some(e => e.cuenta.startsWith('68'))
-  );
-
-  if (monthsWithAmort.length > 0 && monthsWithoutAmort.length > 0) {
-    if (monthsWithAmort.length <= 3) {
-      anomalies.push({
-        id: 'meses_sin_amortizacion',
-        severity: 'low',
-        month: monthsWithoutAmort.join(', '),
-        message: 'Criterio de amortización acumulada a revisar',
-        detail: `Amortización registrada de forma discontinua únicamente en: ${monthsWithAmort.join(', ')}. Se sugiere revisar si corresponde a un criterio de periodificación trimestral/anual o a una omisión voluntaria.`
-      });
-    } else {
-      anomalies.push({
-        id: 'meses_sin_amortizacion',
-        severity: 'medium',
-        month: monthsWithoutAmort.join(', '),
-        message: 'Meses omitidos en amortización recurrente',
-        detail: `Posible inconsistencia técnica u omisión en los meses: ${monthsWithoutAmort.join(', ')}. Se detecta recurrencia mensual consistente en los otros ${monthsWithAmort.length} meses.`
-      });
-    }
-  }
-
-  // Variación brusca en ingresos
-  for (let i = 1; i < months.length; i++) {
-    const mk = months[i];
-    const prev = months[i - 1];
-    const ingActual = byMonth[mk].filter(e => e.grupo === '7').reduce((s, e) => s + e.haber, 0);
-    const ingPrev   = byMonth[prev].filter(e => e.grupo === '7').reduce((s, e) => s + e.haber, 0);
-    if (ingPrev > 0) {
-      const pct = Math.abs((ingActual - ingPrev) / ingPrev) * 100;
-      if (pct > 40) {
-        anomalies.push({
-          id: 'variacion_brusca_ingresos',
-          severity: 'medium',
-          month: mk,
-          message: `Variación brusca en ingresos (${pct.toFixed(0)}%)`,
-          detail: `${prev}: ${ingPrev.toFixed(0)}€ → ${mk}: ${ingActual.toFixed(0)}€`
-        });
-      }
-    }
-  }
-
-  // 3. Uso Estructurado vs Uso Disperso de la Cuenta 129
-  const entriesCon129 = entries.filter(e => e.cuenta.startsWith('129'));
-  if (entriesCon129.length > 0) {
-    const mesesCon129 = [...new Set(entriesCon129.map(e => e.monthKey))].sort();
-    const firstMonth = months[0];
-    const lastMonth = months[months.length - 1];
-    const intermedios = mesesCon129.filter(m => m !== firstMonth && m !== lastMonth);
-
-    if (intermedios.length === 0) {
-      anomalies.push({
-        id: 'cuenta_129_detectada',
-        severity: 'low',
-        month: mesesCon129.join(', '),
-        message: 'Uso estructurado de la cuenta 129 (regularización/apertura)',
-        detail: `Apuntes en la cuenta 129 detectados exclusivamente en meses estándar de apertura (${firstMonth}) y/o regularización (${lastMonth}). Uso estructurado compatible con apertura/regularización.`
-      });
-    } else {
-      // Determinar la severidad basada en el importe máximo de los apuntes intermedios
-      const maxImporteIntermedio = entriesCon129
-        .filter(e => e.monthKey !== firstMonth && e.monthKey !== lastMonth)
-        .reduce((max, e) => Math.max(max, e.debe, e.haber), 0);
-
-      const severidad = maxImporteIntermedio >= 1000.00 ? 'high' : 'medium';
-
-      anomalies.push({
-        id: 'cuenta_129_detectada',
-        severity: severidad,
-        month: intermedios.join(', '),
-        message: 'Uso no estándar o disperso de la cuenta 129',
-        detail: `Se detectaron movimientos en la cuenta 129 en meses intermedios de la serie ordinaria (${intermedios.join(', ')}). Importe máximo de ${maxImporteIntermedio.toFixed(2)}€. Se requiere verificar si existe una distorsión en la PyG o balance de dichos meses.`
-      });
-    }
-  }
-
-  return anomalies;
+  };
 }
 
 // ---- API PÚBLICA ----
@@ -377,7 +325,6 @@ async function parseLedgerFile(file, onProgress) {
     log('ok|Archivo recibido: ' + file.name);
 
     const buffer = await file.arrayBuffer();
-    // [Skill compliance]: cellDates en false para forzar la compensación manual en nuestro parseDate
     const workbook = XLSX.read(buffer, { type: 'array', cellDates: false });
 
     progress(15, 'Detectando estructura...');
@@ -385,6 +332,7 @@ async function parseLedgerFile(file, onProgress) {
     log('ok|Hojas encontradas: ' + sheetNames.join(', '));
 
     const entries = [];
+    const parserTrace = [];
     const step = 60 / Math.max(sheetNames.length, 1);
 
     for (let si = 0; si < sheetNames.length; si++) {
@@ -401,9 +349,12 @@ async function parseLedgerFile(file, onProgress) {
         log(`ok|Hoja detectada: "${sheetName}" (sin mes explícito)`);
       }
 
-      const sheetEntries = parseSheetRows(rows, sheetName, monthNum, log);
+      const { entries: sheetEntries, trace } = parseSheetRows(rows, sheetName, monthNum, log);
       entries.push(...sheetEntries);
-      log(`ok|${sheetEntries.length} asientos leídos en "${sheetName}"`);
+      parserTrace.push(trace);
+      if (trace.status === 'success') {
+        log(`ok|${sheetEntries.length} asientos leídos en "${sheetName}"`);
+      }
     }
 
     progress(80, 'Agrupando por mes...');
@@ -413,10 +364,6 @@ async function parseLedgerFile(file, onProgress) {
       if (!byMonth[entry.monthKey]) byMonth[entry.monthKey] = [];
       byMonth[entry.monthKey].push(entry);
     }
-
-    progress(88, 'Detectando anomalías...');
-    const anomalies = detectAnomalies(entries, byMonth);
-    log(`${anomalies.length > 0 ? 'warn' : 'ok'}|${anomalies.length} anomalías detectadas`);
 
     const cuentasUnicas = new Set(entries.map(e => e.cuenta));
 
@@ -430,15 +377,15 @@ async function parseLedgerFile(file, onProgress) {
         sheets: sheetNames,
         months: Object.keys(byMonth).sort(),
         totalEntries: entries.length,
-        totalCuentas: cuentasUnicas.size
+        totalCuentas: cuentasUnicas.size,
+        parserTrace
       },
       entries,
       byMonth,
-      anomalies
+      anomalies: []
     };
 
   } catch (error) {
-    // [Skill Compliance] Fallback de error robusto: evitamos crashear la vista o el drag & drop
     console.error("Fallo crítico en parser.js:", error);
     log(`error|Fallo en el motor de lectura: ${error.message || 'Error desconocido'}`);
     throw error;

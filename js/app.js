@@ -567,11 +567,52 @@ function renderPreviewTable() {
   
   sec.style.display = 'block';
   
+  // Sincronizar el input de búsqueda si es necesario
+  const searchInput = document.getElementById('preview-search');
+  if (searchInput && searchInput.value !== STATE.ui.entries.filterText) {
+    searchInput.value = STATE.ui.entries.filterText;
+  }
+  
   const { paginated, totalItems } = getPaginatedEntries(STATE.parsedLedger.entries, STATE.ui.entries);
   
   tbody.innerHTML = generatePreviewRowsHTML(paginated);
   updatePreviewSortingHeaders();
   updatePreviewPagination(totalItems);
+
+  // --- BINDING DIRECTO DE EVENTOS (PREVENCIÓN DE SILENT FAILURES) ---
+  if (searchInput) {
+    searchInput.oninput = (e) => {
+      STATE.ui.entries.filterText = e.target.value;
+      STATE.ui.entries.currentPage = 1; // Volver a la pág 1 en cada búsqueda
+    };
+  }
+
+  const getPageCount = () => {
+    return Math.max(1, Math.ceil(totalItems / STATE.ui.entries.pageSize));
+  };
+
+  const btnFirst = document.getElementById('btn-page-first');
+  const btnPrev = document.getElementById('btn-page-prev');
+  const btnNext = document.getElementById('btn-page-next');
+  const btnLast = document.getElementById('btn-page-last');
+
+  if (btnFirst) btnFirst.onclick = () => { STATE.ui.entries.currentPage = 1; };
+  if (btnPrev) btnPrev.onclick = () => { STATE.ui.entries.currentPage = Math.max(1, STATE.ui.entries.currentPage - 1); };
+  if (btnNext) btnNext.onclick = () => { STATE.ui.entries.currentPage = Math.min(getPageCount(), STATE.ui.entries.currentPage + 1); };
+  if (btnLast) btnLast.onclick = () => { STATE.ui.entries.currentPage = getPageCount(); };
+
+  document.querySelectorAll('#preview-table th.clickable-header').forEach(th => {
+    th.onclick = () => {
+      const col = th.dataset.column;
+      if (STATE.ui.entries.sortColumn === col) {
+        STATE.ui.entries.sortDirection = STATE.ui.entries.sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        STATE.ui.entries.sortColumn = col;
+        STATE.ui.entries.sortDirection = 'desc'; // Default desc
+      }
+      STATE.ui.entries.currentPage = 1;
+    };
+  });
 }
 
 // ---- PASO 2: Contexto Contable ----
@@ -629,9 +670,16 @@ function renderMappingTable() {
   }
 
   const uniqueCuentas = Object.keys(accInfo);
+  
+  // Construir mapa de descripciones
+  const descripcionesMap = {};
+  for (const cta of uniqueCuentas) {
+    descripcionesMap[cta] = accInfo[cta]?.desc || '';
+  }
+
   // Inicializamos el mapeo default
   if (!STATE.customMapping) {
-    STATE.customMapping = getDefaultMapping(uniqueCuentas, STATE.selectedProfile.id);
+    STATE.customMapping = getDefaultMapping(uniqueCuentas, STATE.selectedProfile.id, descripcionesMap);
   }
 
   // Filtrar para mostrar sólo grupos 6 y 7 (PyG) con saldo relevante
@@ -649,14 +697,43 @@ function renderMappingTable() {
     const isIngreso = cta.grupo === '7';
     const colorClass = isIngreso ? 'td-credit' : 'td-debit';
     
+    // Obtener heurística SaaS
+    const heuristic = getSaaSHeuristic(cta.cuenta, cta.desc, STATE.selectedProfile.id);
+    let heuristicBadgeHtml = '<span class="heuristic-badge-none">—</span>';
+    let rowReviewClass = '';
+    
+    if (heuristic) {
+      if (heuristic.confidence === 'high') {
+        const catLabel = CATEGORIAS_ANALITICAS[heuristic.suggestedCategory] || heuristic.suggestedCategory;
+        heuristicBadgeHtml = `
+          <div class="heuristic-tooltip">
+            <span class="heuristic-badge heuristic-badge-high">✓ Auto: ${catLabel}</span>
+            <span class="tooltip-text">${heuristic.reason}</span>
+          </div>
+        `;
+      } else if (heuristic.confidence === 'medium') {
+        const catLabel = CATEGORIAS_ANALITICAS[heuristic.suggestedCategory] || heuristic.suggestedCategory;
+        rowReviewClass = 'row-review-pending';
+        heuristicBadgeHtml = `
+          <div class="heuristic-tooltip">
+            <span class="heuristic-badge heuristic-badge-medium">⚠ Sugerido: ${catLabel}</span>
+            <span class="tooltip-text">${heuristic.reason} (Hacer click en select para confirmar)</span>
+          </div>
+        `;
+      }
+    }
+    
     return `
-      <tr>
+      <tr class="${rowReviewClass}" data-row-cuenta="${cta.cuenta}">
         <td><code class="cuenta-code font-bold">${cta.cuenta}</code></td>
         <td class="td-ellipsis" title="${cta.desc}">
           ${cta.desc || '—'}
         </td>
         <td class="td-num ${colorClass} font-bold">
           ${cta.saldoNeto.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}
+        </td>
+        <td>
+          ${heuristicBadgeHtml}
         </td>
         <td>
           <select data-cuenta="${cta.cuenta}" class="mapping-select">
@@ -675,6 +752,12 @@ function renderMappingTable() {
     // Listener para actualizar el diccionario si cambian la opción
     sel.addEventListener('change', (e) => {
       STATE.customMapping[cta] = e.target.value;
+      
+      // Quitar estado "revisar" de la fila tras interacción del usuario
+      const tr = document.querySelector(`tr[data-row-cuenta="${cta}"]`);
+      if (tr && tr.classList.contains('row-review-pending')) {
+        tr.classList.remove('row-review-pending');
+      }
     });
   });
 
@@ -1345,18 +1428,13 @@ function renderRulesLibrary() {
 
 // ---- Funciones de Inicialización de Listeners (Fase 7) ----
 function initPreviewGridListeners() {
-  const searchInput = document.getElementById('preview-search');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
+  // Delegar entrada del buscador (input) a nivel de document
+  document.addEventListener('input', (e) => {
+    if (e.target && e.target.id === 'preview-search') {
       STATE.ui.entries.filterText = e.target.value;
       STATE.ui.entries.currentPage = 1; // Reset to page 1
-    });
-  }
-
-  const btnFirst = document.getElementById('btn-page-first');
-  const btnPrev = document.getElementById('btn-page-prev');
-  const btnNext = document.getElementById('btn-page-next');
-  const btnLast = document.getElementById('btn-page-last');
+    }
+  });
 
   const getPageCount = () => {
     const totalItems = STATE.parsedLedger?.entries 
@@ -1365,34 +1443,30 @@ function initPreviewGridListeners() {
     return Math.max(1, Math.ceil(totalItems / STATE.ui.entries.pageSize));
   };
 
-  if (btnFirst) {
-    btnFirst.addEventListener('click', () => {
-      STATE.ui.entries.currentPage = 1;
-    });
-  }
+  // Delegar clicks en botones de paginación y cabeceras a nivel de document
+  document.addEventListener('click', (e) => {
+    // 1. Paginación
+    const btnPage = e.target.closest('button[id^="btn-page-"]');
+    if (btnPage) {
+      e.preventDefault();
+      const id = btnPage.id;
+      if (id === 'btn-page-first') {
+        STATE.ui.entries.currentPage = 1;
+      } else if (id === 'btn-page-prev') {
+        STATE.ui.entries.currentPage = Math.max(1, STATE.ui.entries.currentPage - 1);
+      } else if (id === 'btn-page-next') {
+        const totalPages = getPageCount();
+        STATE.ui.entries.currentPage = Math.min(totalPages, STATE.ui.entries.currentPage + 1);
+      } else if (id === 'btn-page-last') {
+        STATE.ui.entries.currentPage = getPageCount();
+      }
+      return;
+    }
 
-  if (btnPrev) {
-    btnPrev.addEventListener('click', () => {
-      STATE.ui.entries.currentPage = Math.max(1, STATE.ui.entries.currentPage - 1);
-    });
-  }
-
-  if (btnNext) {
-    btnNext.addEventListener('click', () => {
-      const totalPages = getPageCount();
-      STATE.ui.entries.currentPage = Math.min(totalPages, STATE.ui.entries.currentPage + 1);
-    });
-  }
-
-  if (btnLast) {
-    btnLast.addEventListener('click', () => {
-      STATE.ui.entries.currentPage = getPageCount();
-    });
-  }
-
-  const headers = document.querySelectorAll('#preview-table th.clickable-header');
-  headers.forEach(th => {
-    th.addEventListener('click', () => {
+    // 2. Cabeceras de ordenación
+    const th = e.target.closest('#preview-table th.clickable-header');
+    if (th) {
+      e.preventDefault();
       const col = th.dataset.column;
       if (STATE.ui.entries.sortColumn === col) {
         STATE.ui.entries.sortDirection = STATE.ui.entries.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -1401,7 +1475,8 @@ function initPreviewGridListeners() {
         STATE.ui.entries.sortDirection = 'desc'; // Default a descendente
       }
       STATE.ui.entries.currentPage = 1; // Volver a la primera página
-    });
+      return;
+    }
   });
 }
 

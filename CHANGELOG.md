@@ -4,6 +4,31 @@ Historial de versiones y evolución del CFO Toolkit de APTKI.
 
 ---
 
+## [1.3.0] — 2026-05-20 (Fase 9: Ingesta SaaS & Anomalías Enriquecidas)
+
+### Añadido
+*   **Heurísticas SaaS deterministas ("Human-in-the-Loop")** en `js/analyzer.js`:
+    *   Detección inteligente de servicios SaaS / hosting cloud (AWS, GCP, Azure, etc.) y pasarelas de pago (Stripe, Paypal) autoasignándose a COGS.
+    *   Detección de publicidad online (Google Ads, Facebook Ads) autoasignándose a Marketing.
+    *   Sugerencias de confianza media (desarrollo freelance) que no se autoaplican, mostrándose en UI como advertencia interactiva para que el CFO mantenga el control humano.
+*   **Badges y Tooltips HSL Premium** en `css/index.css`:
+    *   Badges semitransparentes en el Paso 3 (Mapeo Humano) con tooltips descriptivos sobre las sugerencias de la heurística.
+    *   Iluminación de filas con sugerencias de confianza media (`.row-review-pending`) con borde ámbar y transiciones fluidas que se eliminan reactivamente tras el click en el selector.
+*   **Trazabilidad técnica compacta** en `js/parser.js`:
+    *   Implementación de `meta.parserTrace` por hoja conteniendo estrictamente `sheetName`, `headerRowIndex`, `rawHeaders`, `normalizedHeaders`, `status` y `discardReason`, previniendo el crecimiento excesivo de datos.
+*   **Enriquecimiento explicativo de Anomalías** en `js/analyzer.js`:
+    *   `descuadre_contable` (Crítico): Diferencias mensuales al céntimo.
+    *   `meses_sin_amortizacion` (Medio): Falta de registro de amortizaciones listando los meses.
+    *   `variacion_brusca_ingresos` (Alto): Desviaciones MoM >40% indicando de forma determinista la subcuenta del Grupo 7 que causó el mayor impacto.
+    *   `cuenta_129_detectada` (Alto): Uso irregular del Resultado del Ejercicio fuera del cierre.
+
+### Modificado
+*   **Separación estricta Parser vs Analyzer**: El parser se encarga únicamente de la ingesta y saneamiento de datos (`anomalies: []`), mientras que toda la lógica de negocio contable y la deduplicación analítica se centralizan de forma pura en `js/analyzer.js`.
+*   **Detección de Columnas Exact-First**: Refuerzo en `detectColumn` para preferir coincidencia exacta antes de coincidencia parcial, evitando que tablas Excel (`Ctrl+T`) o columnas auxiliares ("Debe anterior") secuestren la asignación de columnas core.
+*   **Delegación de Eventos en Vista Previa**: Ajustes en `js/app.js` delegando al nivel de documento la paginación, filtros de búsqueda y ordenación, garantizando inmunidad ante re-renders dinámicos.
+
+---
+
 ## [1.2.0] — 2026-05-19 (Fase 8: Priorización de Cartera y Routing Interno)
 
 ### Añadido

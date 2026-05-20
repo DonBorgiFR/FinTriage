@@ -46,9 +46,83 @@ function saldoCuenta(entries, prefijos) {
  * Genera el mapeo automático basándose en el PGC.
  * Devuelve un objeto: { "7000001": "ingresos_ventas", ... }
  */
-function getDefaultMapping(cuentasUnicas, profileId) {
+/**
+ * getSaaSHeuristic(cuenta, descripcion, profileId)
+ * Retorna { suggestedCategory, reason, confidence } o null si no hay heurística aplicable.
+ */
+function getSaaSHeuristic(cuenta, descripcion, profileId) {
+  const descLower = (descripcion || '').toLowerCase();
+  
+  // 1. COGS: Cloud Infrastructure (AWS, Google Cloud, Azure, etc.)
+  const cloudKeywords = [
+    'aws', 'amazon web services', 'google cloud', 'gcp', 'microsoft azure', 'azure', 
+    'cloud', 'hosting', 'digital ocean', 'digitalocean', 'linode', 'ovh', 'cloudflare', 'heroku'
+  ];
+  if (cloudKeywords.some(kw => descLower.includes(kw))) {
+    return {
+      suggestedCategory: 'cogs',
+      reason: 'Infraestructura cloud / Hosting (COGS en SaaS)',
+      confidence: 'high'
+    };
+  }
+
+  // 2. COGS: Payment Gateways (Stripe, PayPal, Adyen, Braintree, Redsys, TPV)
+  const paymentKeywords = [
+    'stripe', 'paypal', 'adyen', 'braintree', 'redsys', 'tpv', 'comision tarjeta', 'comisiones tarjeta'
+  ];
+  if (paymentKeywords.some(kw => descLower.includes(kw))) {
+    return {
+      suggestedCategory: 'cogs',
+      reason: 'Pasarela de pago / Comisión de transacciones (COGS)',
+      confidence: 'high'
+    };
+  }
+
+  // 3. Marketing: Google Ads, FB Ads, etc.
+  const marketingKeywords = [
+    'google ads', 'google adwords', 'facebook ads', 'meta ads', 'instagram ads', 
+    'linkedin ads', 'linkedin advertising', 'twitter ads', 'x ads', 'tiktok ads', 'adsense'
+  ];
+  if (marketingKeywords.some(kw => descLower.includes(kw))) {
+    return {
+      suggestedCategory: 'marketing',
+      reason: 'Inversión publicitaria directa (Marketing)',
+      confidence: 'high'
+    };
+  }
+
+  // 4. Freelance Development / Desarrollo técnico (Medium confidence)
+  const freelanceKeywords = [
+    'freelance', 'autonomo', 'desarrollo', 'programador', 'software developer', 
+    'consultoria it', 'desarrollador', 'developer', 'sistemas'
+  ];
+  if (freelanceKeywords.some(kw => descLower.includes(kw))) {
+    return {
+      suggestedCategory: 'cogs',
+      reason: 'Servicio freelance de desarrollo técnico (posible COGS)',
+      confidence: 'medium'
+    };
+  }
+
+  return null;
+}
+
+/**
+ * getDefaultMapping(cuentasUnicas, profileId, descripcionesMap)
+ * Genera el mapeo automático basándose en el PGC y heurísticas de alta confianza.
+ * Devuelve un objeto: { "7000001": "ingresos_ventas", ... }
+ */
+function getDefaultMapping(cuentasUnicas, profileId, descripcionesMap = null) {
   const map = {};
   for (const cta of cuentasUnicas) {
+    const desc = descripcionesMap ? descripcionesMap[cta] : '';
+    const heuristic = getSaaSHeuristic(cta, desc, profileId);
+    
+    if (heuristic && heuristic.confidence === 'high') {
+      map[cta] = heuristic.suggestedCategory;
+      continue;
+    }
+
     if (cta.startsWith('70') || cta.startsWith('71') || cta.startsWith('72') || cta.startsWith('73') || cta.startsWith('74') || cta.startsWith('75')) {
       map[cta] = 'ingresos_ventas';
     } else if (cta.startsWith('76') || cta.startsWith('77') || cta.startsWith('79')) {
@@ -461,6 +535,152 @@ const ANOMALY_RULES = [
       }
       return [];
     }
+  },
+  {
+    id: 'descuadre_contable',
+    severity: 'critical',
+    label: 'Descuadre contable mensual (Debe != Haber)',
+    check: (entries, pygMensual, categoryMap) => {
+      const anomalies = [];
+      const months = Object.keys(pygMensual).sort();
+      for (const m of months) {
+        const monthEntries = entries.filter(e => e.monthKey === m);
+        const debeTotal = monthEntries.reduce((sum, e) => sum + (e.debe || 0), 0);
+        const haberTotal = monthEntries.reduce((sum, e) => sum + (e.haber || 0), 0);
+        const diff = Math.abs(debeTotal - haberTotal);
+        if (diff > 0.02) {
+          anomalies.push({
+            severity: 'critical',
+            message: `Descuadre contable en el mes ${m}`,
+            detail: `La suma mensual de apuntes al Debe (${debeTotal.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€) no coincide con el Haber (${haberTotal.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€). Diferencia de ${diff.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€.`
+          });
+        }
+      }
+      return anomalies;
+    }
+  },
+  {
+    id: 'meses_sin_amortizacion',
+    severity: 'medium',
+    label: 'Ausencia de amortizaciones mensuales',
+    check: (entries, pygMensual, categoryMap) => {
+      const inmovilizado = saldoCuenta(entries, ['20','21','22','23']);
+      const inmovilizadoNeto = inmovilizado.debe - inmovilizado.haber;
+      
+      if (inmovilizadoNeto <= 0) return [];
+      
+      const months = Object.keys(pygMensual).sort();
+      const monthsSinAmort = [];
+      
+      for (const m of months) {
+        const amort = pygMensual[m]?.amortizacion || 0;
+        if (amort === 0) {
+          monthsSinAmort.push(m);
+        }
+      }
+      
+      if (monthsSinAmort.length > 0) {
+        return [{
+          severity: 'medium',
+          message: 'Meses sin registro de amortización',
+          detail: `Existen activos de inmovilizado valorados en ${inmovilizadoNeto.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€, pero no se ha registrado gasto de amortización en ${monthsSinAmort.length} mes(es) (${monthsSinAmort.join(', ')}). Distorsiona el EBITDA y el resultado mensual.`
+        }];
+      }
+      return [];
+    }
+  },
+  {
+    id: 'variacion_brusca_ingresos',
+    severity: 'high',
+    label: 'Variación brusca de ingresos mensuales',
+    check: (entries, pygMensual, categoryMap) => {
+      const anomalies = [];
+      const months = Object.keys(pygMensual).sort();
+      if (months.length < 2) return [];
+
+      for (let i = 1; i < months.length; i++) {
+        const mPrev = months[i - 1];
+        const mCurr = months[i];
+        
+        const ingPrev = pygMensual[mPrev]?.totalIngresos || 0;
+        const ingCurr = pygMensual[mCurr]?.totalIngresos || 0;
+        
+        const absDiff = ingCurr - ingPrev;
+        const absDiffVal = Math.abs(absDiff);
+        
+        if (absDiffVal > 3000) {
+          const pctChange = ingPrev > 0 ? (absDiff / ingPrev) * 100 : (ingCurr > 0 ? 100 : 0);
+          if (Math.abs(pctChange) > 40) {
+            const group7Prev = {};
+            const group7Curr = {};
+            
+            const entriesPrev = entries.filter(e => e.monthKey === mPrev && e.grupo === '7');
+            const entriesCurr = entries.filter(e => e.monthKey === mCurr && e.grupo === '7');
+            
+            entriesPrev.forEach(e => {
+              group7Prev[e.cuenta] = (group7Prev[e.cuenta] || 0) + (e.haber - e.debe);
+            });
+            entriesCurr.forEach(e => {
+              group7Curr[e.cuenta] = (group7Curr[e.cuenta] || 0) + (e.haber - e.debe);
+            });
+            
+            const allSubAccounts = new Set([...Object.keys(group7Prev), ...Object.keys(group7Curr)]);
+            let maxContribCta = '—';
+            let maxContribVal = -1;
+            
+            for (const cta of allSubAccounts) {
+              const prevVal = group7Prev[cta] || 0;
+              const currVal = group7Curr[cta] || 0;
+              const diffCta = Math.abs(currVal - prevVal);
+              if (diffCta > maxContribVal) {
+                maxContribVal = diffCta;
+                maxContribCta = cta;
+              }
+            }
+            
+            const ccurrVal = group7Curr[maxContribCta] || 0;
+            const weightPct = ingCurr > 0 ? (ccurrVal / ingCurr) * 100 : 0;
+            
+            const direction = absDiff > 0 ? 'incremento' : 'descenso';
+            anomalies.push({
+              severity: 'high',
+              message: `Variación brusca de ingresos (${mPrev} → ${mCurr})`,
+              detail: `Se detectó un ${direction} de ingresos de ${pctChange.toFixed(1)}% (${absDiffVal.toLocaleString('es-ES', {maximumFractionDigits:0})}€ de diferencia absoluta). La subcuenta que más contribuyó al cambio fue la ${maxContribCta} con una variación de ${maxContribVal.toLocaleString('es-ES', {maximumFractionDigits:0})}€ y un peso del ${weightPct.toFixed(1)}% sobre los ingresos de ${mCurr}.`
+            });
+          }
+        }
+      }
+      return anomalies;
+    }
+  },
+  {
+    id: 'cuenta_129_detectada',
+    severity: 'high',
+    label: 'Uso de la cuenta 129 detectado',
+    check: (entries, pygMensual, categoryMap) => {
+      const months = Object.keys(pygMensual).sort();
+      if (months.length === 0) return [];
+      const openingMonth = months[0];
+      const closingMonth = months[months.length - 1];
+
+      const entries129 = entries.filter(e => 
+        e.cuenta.startsWith('129') && 
+        e.monthKey !== openingMonth && 
+        e.monthKey !== closingMonth
+      );
+      if (entries129.length === 0) return [];
+      
+      const affectedMonths = [...new Set(entries129.map(e => e.monthKey).filter(Boolean))].sort();
+      const example = entries129[0];
+      const importe = example.debe > 0 ? example.debe : example.haber;
+      const t = example.debe > 0 ? 'D' : 'H';
+      
+      return [{
+        severity: 'high',
+        message: 'Uso de la cuenta 129 fuera de cierre',
+        detail: `Se detectaron ${entries129.length} apuntes en la cuenta 129 (Resultado del ejercicio) fuera de los meses de apertura/cierre, afectando a los meses: ${affectedMonths.join(', ')}. [Asiento Ej: #${example.asiento || 's/n'}, ${example.fecha || 'sin fecha'}, cta ${example.cuenta}, ${importe.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€ (${t}), ${example.descripcion || 'sin concepto'}]`
+      }];
+    }
   }
 ];
 
@@ -700,7 +920,13 @@ function analyzeLedger(parsedLedger, profileId, customMapping = null, approvedAc
 
   // Mapeo analítico
   const uniqueAccounts = new Set(entries.map(e => e.cuenta));
-  const categoryMap = customMapping || getDefaultMapping(uniqueAccounts, profileId);
+  const descripcionesMap = {};
+  for (const e of entries) {
+    if (!descripcionesMap[e.cuenta]) {
+      descripcionesMap[e.cuenta] = e.descripcion || '';
+    }
+  }
+  const categoryMap = customMapping || getDefaultMapping(uniqueAccounts, profileId, descripcionesMap);
 
   // Aplicar devengos si los hay
   const byMonthDevengado = applyAccruals(byMonth, approvedAccruals, months);
