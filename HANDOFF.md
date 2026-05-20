@@ -12,6 +12,14 @@
   - **Parser Blindado:** `parser.js` corrige automáticamente la época matemática de Excel (1899 vs 1970) y purifica numéricos negativos contables encerrados entre paréntesis e ignora celdas vacías (`DBNull`), asegurando cero fallos de ejecución.
   - **Arquitectura Reactiva (State Wrapping):** Implementado `store.js` con un ES6 *Deep Proxy* y un bus de eventos (Observer / PubSub). Toda la SPA es ahora puramente reactiva a los cambios de estado sin necesidad de mutaciones manuales ni acoplamientos espagueti en la vista.
   - **Diseño Dark Glassmorphism (Fase 3 UI):** Interfaz premium utilizando `backdrop-filter: blur`, gradientes profundos, bordes sutiles y micro-animaciones para proyectar autoridad institucional.
+- **Convergencia Financiera Avanzada (Fase 9.1):**
+  - **Fórmula de Crisis CDTI Blindada:** Integración de la regla de exclusión de ayudas de la UE (Reglamento 651/2014) sobre fondos propios netos ajustados (excluyendo subvenciones de capital del grupo 13).
+  - **Quiebra Técnica LSC:** Evaluación automática de causa legal de disolución según el Art. 363.1.e de la Ley de Sociedades de Capital (LSC) para patrimonio neto total inferior al 50% del Capital Social.
+  - **EBITDA Orgánico ENISA:** Purgado y cálculo del EBITDA normalizado tras deducir activaciones de I+D (cta. 730) y subvenciones de capital imputadas a resultados (cta. 746) para simular el rating del analista financiero público.
+- **Gestión de Riesgos de la Cuenta 551 con Socios (Fase 2):**
+  - **Divergencia Deudora/Acreedora:** Separación analítica estricta de la cuenta corriente con socios y administradores (cta. 551/550) en base a su signo contable final (deudor vs. acreedor).
+  - **Umbral Material de Seguridad:** Implementación de un límite de materialidad de **3.000 €** acumulado final para mitigar falsos positivos originados por pequeños reembolsos de gastos o partidas transitorias.
+  - **Modelado Tributario Preventivo:** Cálculo dinámico y preventivo del devengo de intereses vinculados bajo el tipo legal vigente (3.25% en 2026), estimando la retención del 19% (Modelo 123 trimestral) y la declaración informativa de transacciones vinculadas (Modelo 232) si se superan los 250.000 €.
 
 ## 2. Robustez de Fase 7 (Micro Sprint de Calidad)
 - **DSO/DPO Real Restaurado:** Se corrigió el bug de cálculo real. Se implementó una agregación robusta por prefijo contable (`43` para deudores, `40` para acreedores) sobre el mapa de subcuentas consolidado, invirtiendo el signo para clientes (saldo deudor) para adecuarse a la convención `haber - debe` de `analyzer.js`.

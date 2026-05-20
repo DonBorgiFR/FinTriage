@@ -4,6 +4,28 @@ Historial de versiones y evolución del CFO Toolkit de APTKI.
 
 ---
 
+## [1.3.3] — 2026-05-20 (Fase 2: Gestión de Riesgos de la Cuenta 551 con Socios)
+
+### Añadido
+*   **Reglas analíticas de riesgos en Cuenta Corriente con Socios (cta. 551)** en `js/analyzer.js` (`ANOMALY_RULES`):
+    *   `prestamos_socios` (Cuenta 551 Deudora - Alto): Detección de saldos deudores netos acumulados mayores a **3.000 €** en la relación corriente con socios (cta. 551/550), orientada a prevenir sanciones por distribuciones de dividendo encubierto o presunciones de fuga de capital por parte de la AEAT. Conserva el ID unívoco para preservar la compatibilidad absoluta con el Cockpit de Defensa (`defensa.js`) y el módulo de Narrativa (`narrative.js`).
+    *   `cuenta_551_acreedora` (Cuenta 551 Acreedora - Alto): Identificación de saldos acreedores netos acumulados superiores a **3.000 €** en el subgrupo 551/550, alertando sobre la presunción legal de préstamo vinculado. Calcula dinámicamente la provisión del devengo al tipo de interés legal de mercado (3,25% para 2026), retenciones del 19% trimestrales (Modelo 123) y la obligación informativa del Modelo 232 si supera el límite de 250.000 €.
+
+---
+
+## [1.3.2] — 2026-05-20 (Fase 9.1: Integración Mínima de Alto Impacto - ENISA y CDTI)
+
+### Añadido
+*   **Reglas analíticas deterministas de alto impacto** en `js/analyzer.js` (`ANOMALY_RULES`):
+    *   `cdti_empresa_en_crisis` (Crítico): Evalúa automáticamente el test de crisis de la UE bajo el Reglamento (UE) nº 651/2014, verificando si los Fondos Propios contables (grupos 10, 11, 12) caen por debajo del 50% de la suma del Capital Social suscrito y la Prima de Emisión. Excluye explícitamente las subvenciones de capital (grupo 13) para evitar falsos positivos normativos.
+    *   `causa_disolucion_lsc` (Crítico): Compara el Patrimonio Neto estimado general (incluyendo grupo 13 y 14) frente al Capital Social. Advierte de forma explícita al CFO cuando es inferior al 50%, activando los plazos y responsabilidades legales del Art. 363.1.e de la Ley de Sociedades de Capital (LSC).
+    *   `ebitda_normalizado_enisa` (Medio): Calcula el EBITDA contable acumulado y deriva automáticamente el "EBITDA Orgánico" restando los apuntes acreedores de la cuenta 730 (activación de I+D) y de la cuenta 746 (subvenciones de capital imputadas a PyG) para reflejar los rigurosos criterios de rating de ENISA.
+
+### Modificado/Corregido
+*   **Alineamiento Conceptual de Fondos Propios**: Separación nítida entre el Patrimonio Neto contable general (usado para la disolución legal LSC) y los Fondos Propios elegibles a efectos del test CDTI y paridad ENISA, previniendo distorsiones y falsas alertas.
+
+---
+
 ## [1.3.1] — 2026-05-20 (Cierre y Polish de la Fase 9)
 
 ### Añadido

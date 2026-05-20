@@ -490,13 +490,36 @@ const ANOMALY_RULES = [
   {
     id: 'prestamos_socios',
     severity: 'high',
-    label: 'Riesgo de fuga de capital (Grupo 55)',
+    label: 'Riesgo Fiscal: Cuenta 551 Deudora',
     check: (entries, pygMensual, categoryMap) => {
-      const saldo = saldoCuenta(entries, ['55']);
-      if (saldo.debe - saldo.haber > 10000) {
+      const cta551 = saldoCuenta(entries, ['551', '550']);
+      const saldoNeto = cta551.debe - cta551.haber; // Saldo deudor (activo)
+
+      if (saldoNeto > 3000) {
         return [{
-          severity: 'high', message: 'Préstamos encubiertos a socios detectados',
-          detail: `Saldo deudor relevante (>10k€) en el Grupo 55.`
+          severity: 'high',
+          message: 'Riesgo Fiscal: Cuenta 551 Deudora (Socio Deudor)',
+          detail: `Se detecta un saldo deudor neto final de ${saldoNeto.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ en la cuenta corriente con socios (cta. 551/550). La AEAT mantiene un criterio de inspección riguroso sobre estos saldos deudores persistentes, pudiendo recalificarlos como distribuciones de dividendos encubiertas o encubrir préstamos no declarados, con la consecuente liquidación de retenciones a cuenta de IRPF (hasta el 28%) y sanciones del 50%-150% a la empresa. Se aconseja formalizar un contrato de préstamo a tipo de interés legal o reintegrar el capital antes del cierre del ejercicio fiscal.`
+        }];
+      }
+      return [];
+    }
+  },
+  {
+    id: 'cuenta_551_acreedora',
+    severity: 'high',
+    label: 'Riesgo Fiscal: Cuenta 551 Acreedora',
+    check: (entries, pygMensual, categoryMap) => {
+      const cta551 = saldoCuenta(entries, ['551', '550']);
+      const saldoNeto = cta551.haber - cta551.debe; // Saldo acreedor (pasivo)
+
+      if (saldoNeto > 3000) {
+        const interesLegal = saldoNeto * 0.0325; // Interés legal aproximado 2025/2026 (3,25%)
+        const retencionEstimada = interesLegal * 0.19; // Retención a cuenta del 19% (Modelo 123)
+        return [{
+          severity: 'high',
+          message: 'Operaciones Vinculadas: Cuenta 551 Acreedora (Socio Acreedor)',
+          detail: `Existe un saldo acreedor neto final de ${saldoNeto.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ en la cuenta de relaciones con socios (cta. 551/550). A efectos fiscales, esta aportación transitoria de fondos se presume como un préstamo vinculado. Exige formalizar contrato de préstamo mercantil y el devengo periódico de intereses al tipo legal del dinero (3,25% en 2026: ~${interesLegal.toLocaleString('es-ES', {maximumFractionDigits: 0})}€/año), sujeto a una retención trimestral del 19% liquidable en el Modelo 123 (~${retencionEstimada.toLocaleString('es-ES', {maximumFractionDigits: 0})}€/año). Superar un saldo de 250.000€ obliga adicionalmente a su declaración informativa en el Modelo 232.`
         }];
       }
       return [];
@@ -680,6 +703,77 @@ const ANOMALY_RULES = [
         message: 'Uso de la cuenta 129 fuera de cierre',
         detail: `Se detectaron ${entries129.length} apuntes en la cuenta 129 (Resultado del ejercicio) fuera de los meses de apertura/cierre, afectando a los meses: ${affectedMonths.join(', ')}. [Asiento Ej: #${example.asiento || 's/n'}, ${example.fecha || 'sin fecha'}, cta ${example.cuenta}, ${importe.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€ (${t}), ${example.descripcion || 'sin concepto'}]`
       }];
+    }
+  },
+  {
+    id: 'cdti_empresa_en_crisis',
+    severity: 'critical',
+    label: 'Descalificación CDTI: Empresa en Crisis',
+    check: (entries, pygMensual, categoryMap) => {
+      const csRes = saldoCuenta(entries, ['10']);
+      const peRes = saldoCuenta(entries, ['110']);
+      const cs_pe_Saldo = (csRes.haber - csRes.debe) + (peRes.haber - peRes.debe);
+
+      const fpRes = saldoCuenta(entries, ['10', '11', '12']);
+      const fpSaldo = fpRes.haber - fpRes.debe;
+
+      if (cs_pe_Saldo > 0 && fpSaldo < (cs_pe_Saldo / 2)) {
+        return [{
+          severity: 'critical',
+          message: 'Descalificación CDTI: Causa de Empresa en Crisis (Reglamento UE 651/2014)',
+          detail: `Los Fondos Propios elegibles (${fpSaldo.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€) caen por debajo del 50% de la suma del Capital Social suscrito y Prima de Emisión (${cs_pe_Saldo.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€). Exclusión automática para la concesión de ayudas públicas CDTI de acuerdo con la normativa comunitaria de ayudas de Estado.`
+        }];
+      }
+      return [];
+    }
+  },
+  {
+    id: 'causa_disolucion_lsc',
+    severity: 'critical',
+    label: 'Quiebra Técnica: Causa de Disolución',
+    check: (entries, pygMensual, categoryMap) => {
+      const csRes = saldoCuenta(entries, ['10']);
+      const csSaldo = csRes.haber - csRes.debe;
+      
+      const balance = buildBalanceEstimated(entries);
+      const pnSaldo = balance.patrimonioNeto;
+
+      if (csSaldo > 0 && pnSaldo < (csSaldo / 2)) {
+        return [{
+          severity: 'critical',
+          message: 'Quiebra Técnica: Causa Legal de Disolución (Art. 363.1.e LSC)',
+          detail: `El Patrimonio Neto estimado (${pnSaldo.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€) se ha reducido por debajo del 50% del Capital Social (${csSaldo.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€). Obligación legal de convocar Junta General en un plazo máximo de 2 meses para restablecer el equilibrio mediante ampliación de capital, reducción o aportación a la cta 118, bajo responsabilidad personal y solidaria de los administradores.`
+        }];
+      }
+      return [];
+    }
+  },
+  {
+    id: 'ebitda_normalizado_enisa',
+    severity: 'medium',
+    label: 'EBITDA Orgánico vs. Contable (Ajuste ENISA)',
+    check: (entries, pygMensual, categoryMap) => {
+      const cta730Res = saldoCuenta(entries, ['730']);
+      const cta730 = cta730Res.haber - cta730Res.debe;
+
+      const cta746Res = saldoCuenta(entries, ['746']);
+      const cta746 = cta746Res.haber - cta746Res.debe;
+
+      if (cta730 > 0.01 || cta746 > 0.01) {
+        const ebitdaContable = Object.values(pygMensual).reduce((acc, m) => acc + (m.ebitda || 0), 0);
+        const ebitdaNormalizado = ebitdaContable - cta730 - cta746;
+        
+        let details = [];
+        if (cta730 > 0.01) details.push(`-${cta730.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ de activación de desarrolladores (cta. 730)`);
+        if (cta746 > 0.01) details.push(`-${cta746.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ de subvenciones imputadas a PyG (cta. 746)`);
+
+        return [{
+          severity: 'medium',
+          message: 'EBITDA Normalizado para ENISA',
+          detail: `EBITDA contable: ${ebitdaContable.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€. EBITDA normalizado: ${ebitdaNormalizado.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€ (restando ${details.join(' y ')}). ENISA evalúa la viabilidad sobre este EBITDA orgánico purgado de activaciones contables y transferencias de subvenciones.`
+        }];
+      }
+      return [];
     }
   }
 ];
