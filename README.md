@@ -1,5 +1,7 @@
 # APTKI Workstation — CFO & Portfolio Toolkit
 
+> **Versión Actual:** `v1.3.1` · Hito de Cierre de la Fase 9 (Mayo 2026)
+
 APTKI Workstation es la plataforma profesional client-side de análisis y triage financiero desarrollada para consultores senior de **APTKI**. Esta herramienta automatiza la ingesta de libros contables del Plan General Contable (PGC) español, diagnosticando la consistencia interna, recalculando márgenes analíticos, proyectando escenarios de caja e implementando un módulo multicompañía para controlar y enrutar carteras de startups.
 
 ---
@@ -87,18 +89,19 @@ El sistema interactúa de forma transparente con dos esquemas del formato JSON l
 *   **Fases 1 a 6 (Base y Core Analítico)**: Ingesta contable estructurada, categorización del PGC a PyG, Trust Score y anomalías declarativas, simulaciones de forecast estadístico, checklist Día 1 de orden contable, scoring público de ENISA/CDTI, y exportadores dinámicos.
 *   **Fase 7 (Cockpit de Supervivencia y Robustez)**: Módulo de Defensa de caja ante runways críticos (<4 meses), agregación correcta de DSO/DPO por prefijo con signos contables precisos, null-safety integrado frente a diarios vacíos, y portapapeles seguro de alta compatibilidad.
 *   **Fase 8 (Gestión de Cartera y Routing Operativo)**: Ingesta en lote de múltiples sesiones, motor de triage tridimensional determinista (Foco Principal, Bloqueador, Ruta), persistencia unificada dual en archivos `.aptki` y ficha Handoff Express para derivar casos fácilmente.
+*   **Fase 9 (Ingesta SaaS, Heurísticas y Anomalías Enriquecidas)**: Ingesta robusta e inmutable con separación estricta entre parser y analyzer. Detección inteligente de columnas *Exact-First*, trazabilidad técnica compacta mediante `meta.parserTrace`, heurísticas "Human-in-the-Loop" con badges interactivos para sugerir asignación automática de gastos SaaS (COGS/Marketing), delegación de eventos robusta en UI, y enriquecimiento de anomalías CFO avanzadas (descuadres MoM, amortizaciones y uso irregular de cuenta 129).
 
 ---
 
-## 7. Cómo Validar Manualmente la Fase 8
+## 7. Cómo Validar Manualmente la Fase 8 & 9
 
-Para verificar la correcta operatividad del módulo Cartera:
+Para verificar la correcta operatividad del módulo Cartera y las mejoras de Ingesta SaaS:
 1.  **Carga Masiva**: Carga múltiples archivos `.aptki` en la sección principal y confirma que la vista cambia a la tabla de Cartera con todas las startups listadas.
 2.  **Verificación de Bloqueos**:
     *   Carga una sesión con deuda en el Grupo 47 > 3.000€ y valida que el sistema marque el bloqueador *"Regularización Deuda Pública"* y lo envíe a la ruta *"Gestoría"*.
     *   Carga una sesión con saldo deudor en la cuenta 551/552 > 10.000€ y verifica que el bloqueador *"Saneamiento Socios (Due Diligence)"* se active redirigiéndola a *"Gestoría"*.
 3.  **Ficha Handoff**: Haz clic en el botón de portapapeles `📋` en cualquier fila de la tabla y pega el texto en un editor; confirma que muestra los datos de triage exactos.
-4.  **Transición Limpia**: Haz clic en *"Analizar"* `➜` en una startup de la cartera y comprueba que se rehidrata el Dashboard completo con sus datos específicos.
+4.  **Ingesta SaaS & Heurísticas**: Carga el diario consolidado de FlowMetrics en formato tabla de Excel. Valida que el mapeo del Paso 3 detecte correctamente AWS/GCP como COGS e indique las sugerencias de confianza media (desarrollo freelance) con la clase visual `.row-review-pending` y badges ámbar descriptivos.
 
 ---
 
@@ -112,8 +115,8 @@ El repositorio cuenta con las siguientes guías de referencia técnica y operati
 
 ---
 
-## 8. Roadmap Corto (Próximos Pasos)
+## 9. Roadmap Corto (Próximos Pasos)
 
-1.  **Copiloto IA Financiero (Fase 9)**: Integración de un motor local de lenguaje para interpretar la Ficha de Handoff y automatizar la redacción de informes narrativos de due diligence.
+1.  **Copiloto IA Financiero (Fase 10)**: Integración de un motor local de lenguaje para interpretar la Ficha de Handoff y automatizar la redacción de informes narrativos de due diligence.
 2.  **Score Avanzado de Financiación Bancaria**: Incorporación de reglas de scoring basadas en el rating tradicional de entidades bancarias españolas (CIRBE y capacidad de servicio de la deuda).
 3.  **Conexión API Bancaria (PSD2)**: Módulo opcional de ingesta de movimientos bancarios en tiempo real para contrastar la conciliación de caja sin depender del diario.

@@ -716,11 +716,17 @@ const CONFIDENCE_LEVELS = {
  * @param {Array} anomalies - Array combinado de anomalías (parser + analyzer)
  * @param {boolean} ebitdaSuspect - true si ≥3 anomalías high/critical
  * @param {Object|null} contextChecklist - Respuestas del checklist humano (null = sin contexto)
+ * @param {Array} months - Claves de meses cronológicos analizados
  * @returns {{ trustScore, confidenceLevel, confidenceLabel, forecastMode, scoringPenalty, ebitdaSuspect, analysisLimitations, fundingReadinessFlags, auditReasons }}
  */
-function getConfidenceMeta(baseTrustScore, anomalies, ebitdaSuspect, contextChecklist = null) {
+function getConfidenceMeta(baseTrustScore, anomalies, ebitdaSuspect, contextChecklist = null, months = []) {
   const analysisLimitations = [];
   const auditReasons = [];
+
+  // Prudencia por periodo contable inferior a un año completo (12 meses)
+  if (months && months.length > 0 && months.length < 12) {
+    analysisLimitations.push(`El periodo contable analizado es inferior a un año completo (contiene ${months.length} meses).`);
+  }
 
   // ── 1. Delta humano desde contextChecklist ──
   const DISTORTION_DELTAS = {
@@ -738,7 +744,7 @@ function getConfidenceMeta(baseTrustScore, anomalies, ebitdaSuspect, contextChec
       deltaHuman += 3; auditReasons.push('+3 pts: Periodo completo declarado.');
     } else if (contextChecklist.coveragePeriod === 'missing_months') {
       deltaHuman -= 5; auditReasons.push('-5 pts: Faltan meses en el periodo.');
-      analysisLimitations.push('El usuario declara que faltan meses en el libro.');
+      analysisLimitations.push('Faltan meses intermedios dentro del rango analizado.');
     } else if (contextChecklist.coveragePeriod === 'unsure') {
       deltaHuman -= 3; auditReasons.push('-3 pts: Cobertura del periodo incierta.');
       analysisLimitations.push('No hay certeza sobre la cobertura completa del periodo.');
@@ -1026,7 +1032,7 @@ function analyzeLedger(parsedLedger, profileId, customMapping = null, approvedAc
   trustScore = Math.max(0, Math.floor(trustScore));
 
   // ---- Confidence Engine (bloque único, centralizado) ----
-  const confidence = getConfidenceMeta(trustScore, allAnomalies, ebitdaSuspect, contextChecklist);
+  const confidence = getConfidenceMeta(trustScore, allAnomalies, ebitdaSuspect, contextChecklist, parsedLedger.meta.months);
 
   const data = {
     meta: { ...parsedLedger.meta }, // trustScore eliminado de meta (Legacy Phase 5)

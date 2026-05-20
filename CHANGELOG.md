@@ -4,6 +4,20 @@ Historial de versiones y evolución del CFO Toolkit de APTKI.
 
 ---
 
+## [1.3.1] — 2026-05-20 (Cierre y Polish de la Fase 9)
+
+### Añadido
+*   **Advertencia descriptiva de Periodo Incompleto**: Evaluación automática en `getConfidenceMeta` del número de meses analizados (`months.length < 12`), inyectando de forma clara la advertencia *"El periodo contable analizado es inferior a un año completo (contiene X meses)."* en lugar de la penalizante y alarmante *"No hay certeza sobre la cobertura completa del periodo."*, reservando esta última estrictamente para cuando el usuario declara duda o lagunas temporales intermedias.
+
+### Modificado/Corregido
+*   **Robustez del Ratio de Liquidez**:
+    *   Control estricto contra pasivos corrientes nulos, negativos o insignificantes (`pc <= 10.0`).
+    *   Control contra ratios fuera de rango razonable contable (`ratio < 0` o `ratio > 100.0`).
+    *   Integración del badge de advertencia HSL `"⚠️ Verificar balance"` inline en la visualización del KPI cuando se detectan estas condiciones, en lugar de mostrar cifras astronómicas.
+*   **Documentación**: Actualización del archivo `README.md` del repositorio para describir detalladamente todas las capacidades de la Fase 9 e inserción del tag de hito de versión `v1.3.1`.
+
+---
+
 ## [1.3.0] — 2026-05-20 (Fase 9: Ingesta SaaS & Anomalías Enriquecidas)
 
 ### Añadido

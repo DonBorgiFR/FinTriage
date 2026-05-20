@@ -258,10 +258,12 @@ const UNIVERSAL_KPIS = [
     desc: 'Activo Corriente / Pasivo Corriente. Óptimo > 1',
     compute: (data) => {
       if (!data.balance) return null;
-      const ac = data.balance.activoCorriente;
-      const pc = data.balance.pasivoCorriente;
-      if (!pc) return null;
-      return ac / pc;
+      const ac = data.balance.activoCorriente || 0;
+      const pc = data.balance.pasivoCorriente || 0;
+      if (pc <= 10.0) return { error: 'verificar_balance' };
+      const ratio = ac / pc;
+      if (ratio < 0 || ratio > 100.0) return { error: 'verificar_balance' };
+      return ratio;
     },
     thresholds: { ok: 1.5, warn: 1 }
   },
@@ -311,7 +313,11 @@ const UNIVERSAL_KPIS = [
 
 // Helpers de formato
 function formatKpiValue(value, format) {
-  if (value === null || value === undefined || isNaN(value)) return '—';
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'object' && value.error === 'verificar_balance') {
+    return '— <span class="badge-warning-kpi" style="font-size: 10px; padding: 2px 6px; background-color: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 4px; margin-left: 6px; display: inline-flex; align-items: center; gap: 4px; vertical-align: middle;">⚠️ Verificar balance</span>';
+  }
+  if (isNaN(value)) return '—';
   switch (format) {
     case 'currency':
       return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value) + ' €';
