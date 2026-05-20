@@ -579,40 +579,10 @@ function renderPreviewTable() {
   updatePreviewSortingHeaders();
   updatePreviewPagination(totalItems);
 
-  // --- BINDING DIRECTO DE EVENTOS (PREVENCIÓN DE SILENT FAILURES) ---
-  if (searchInput) {
-    searchInput.oninput = (e) => {
-      STATE.ui.entries.filterText = e.target.value;
-      STATE.ui.entries.currentPage = 1; // Volver a la pág 1 en cada búsqueda
-    };
-  }
-
-  const getPageCount = () => {
-    return Math.max(1, Math.ceil(totalItems / STATE.ui.entries.pageSize));
-  };
-
-  const btnFirst = document.getElementById('btn-page-first');
-  const btnPrev = document.getElementById('btn-page-prev');
-  const btnNext = document.getElementById('btn-page-next');
-  const btnLast = document.getElementById('btn-page-last');
-
-  if (btnFirst) btnFirst.onclick = () => { STATE.ui.entries.currentPage = 1; };
-  if (btnPrev) btnPrev.onclick = () => { STATE.ui.entries.currentPage = Math.max(1, STATE.ui.entries.currentPage - 1); };
-  if (btnNext) btnNext.onclick = () => { STATE.ui.entries.currentPage = Math.min(getPageCount(), STATE.ui.entries.currentPage + 1); };
-  if (btnLast) btnLast.onclick = () => { STATE.ui.entries.currentPage = getPageCount(); };
-
-  document.querySelectorAll('#preview-table th.clickable-header').forEach(th => {
-    th.onclick = () => {
-      const col = th.dataset.column;
-      if (STATE.ui.entries.sortColumn === col) {
-        STATE.ui.entries.sortDirection = STATE.ui.entries.sortDirection === 'asc' ? 'desc' : 'asc';
-      } else {
-        STATE.ui.entries.sortColumn = col;
-        STATE.ui.entries.sortDirection = 'desc'; // Default desc
-      }
-      STATE.ui.entries.currentPage = 1;
-    };
-  });
+  // Los eventos de paginación, búsqueda y ordenación se gestionan exclusivamente
+  // por el handler delegado en initPreviewGridListeners() (registrado una sola vez
+  // en document). No se reasignan aquí para evitar doble disparo (double-fire)
+  // que anula el toggle asc/desc en clicks sucesivos sobre la misma cabecera.
 }
 
 // ---- PASO 2: Contexto Contable ----
