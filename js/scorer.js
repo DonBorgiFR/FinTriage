@@ -254,10 +254,17 @@ function renderScorer() {
   document.getElementById('btn-recalcular-scoring')?.addEventListener('click', () => {
     _collectScoringInputs();
     if (!STATE.analysisResult) { showToast('Carga un libro diario primero', 'error'); return; }
-    STATE.scoringResult = scoreFinanciacion(STATE.analysisResult, STATE.scoringInputs);
-    document.getElementById('scoring-results').innerHTML = _buildScoringHTML();
-    if (typeof renderChecklist === 'function') renderChecklist();
-    showToast('Scoring actualizado ✓', 'success');
+    try {
+      STATE.scoringResult = scoreFinanciacion(STATE.analysisResult, STATE.scoringInputs);
+      document.getElementById('scoring-results').innerHTML = _buildScoringHTML();
+      if (typeof renderChecklist === 'function') renderChecklist();
+      showToast('Scoring actualizado ✓', 'success');
+    } catch (e) {
+      console.error('[APTKI] Error recalcular scoring:', e);
+      STATE.scoringResult = null;
+      document.getElementById('scoring-results').innerHTML = _buildScoringHTML();
+      showToast('⚠️ Error al recalcular scoring. Degradación aplicada.', 'warn', 5000);
+    }
   });
 }
 
@@ -276,8 +283,33 @@ function _collectScoringInputs() {
 }
 
 function _buildScoringHTML() {
-  const scoring = STATE.scoringResult || scoreFinanciacion(STATE.analysisResult, STATE.scoringInputs || {});
-  STATE.scoringResult = scoring;
+  let scoring = STATE.scoringResult;
+  if (!scoring) {
+    try {
+      scoring = scoreFinanciacion(STATE.analysisResult, STATE.scoringInputs || {});
+      STATE.scoringResult = scoring;
+    } catch (e) {
+      console.error('[APTKI] Error in scoreFinanciacion within _buildScoringHTML:', e);
+      scoring = null;
+      STATE.scoringResult = null;
+    }
+  }
+
+  if (!scoring) {
+    return `
+      <div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); padding:30px; text-align:center; grid-column: 1 / -1; margin:20px 0; width:100%;">
+        <span style="font-size:3rem; display:block; margin-bottom:16px;">🏅</span>
+        <h3 style="font-family:var(--font-display); font-size:1.15rem; font-weight:700; color:var(--text-primary); margin-bottom:8px;">Scoring de Financiación no disponible</h3>
+        <p style="font-size:0.88rem; color:var(--text-secondary); max-width:500px; margin:0 auto 20px auto;">
+          No se ha podido procesar el scoring automático de elegibilidad financiera para ENISA y CDTI debido a inconsistencias o anomalías en el libro contable de la empresa. El resto de la workstation sigue plenamente operativa.
+        </p>
+        <div style="font-size:0.78rem; font-family:var(--font-mono); color:var(--red); background:rgba(0,0,0,0.15); padding:8px 12px; border-radius:var(--radius-sm); display:inline-block;">
+          Error: ${STATE.auditTrail?.filter(a => a.action === 'DEGRADACIÓN' && a.detail.includes('scoreFinanciacion')).pop()?.detail || 'Fallo técnico en el motor de elegibilidad'}
+        </div>
+      </div>
+    `;
+  }
+
   return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:24px;">
     ${_renderProgramaCard('ENISA Emprendedores', '🏦', scoring.enisa, 'var(--cyan)', 'Préstamo participativo hasta 300K€ · Ratio 1:1 capital propio')}
     ${_renderProgramaCard('CDTI Neotec', '🔬', scoring.cdti, 'var(--purple)', 'Subvención + préstamo hasta 250K€ · Proyectos I+D de base tecnológica')}

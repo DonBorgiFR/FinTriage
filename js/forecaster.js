@@ -45,7 +45,7 @@ function buildForecast(data, hyp) {
   if (n === 1) {
     avgIngresos = data.pygMensual[pygMonths[0]].totalIngresos;
     avgOpex = data.pygMensual[pygMonths[0]].personal + data.pygMensual[pygMonths[0]].marketing + 
-              data.pygMensual[pygMonths[0]].serviciosOperativos + data.pygMonths[pygMonths[0]].cogs + data.pygMonths[pygMonths[0]].tributos;
+              data.pygMensual[pygMonths[0]].serviciosOperativos + data.pygMensual[pygMonths[0]].cogs + data.pygMensual[pygMonths[0]].tributos;
     baselineMode = "Valor único (1 mes)";
   } else if (n === 2) {
     avgIngresos = (data.pygMensual[pygMonths[0]].totalIngresos + data.pygMensual[pygMonths[1]].totalIngresos) / 2;
@@ -143,8 +143,32 @@ function renderForecast() {
 
   const fmt = v => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(v);
 
-  const result = buildForecast(STATE.analysisResult, hyp);
-  STATE.forecastResult = result;
+  let result;
+  try {
+    result = buildForecast(STATE.analysisResult, hyp);
+    STATE.forecastResult = result;
+  } catch (errForecast) {
+    console.error('[APTKI] Error al construir el forecast en renderForecast:', errForecast);
+    result = null;
+    STATE.forecastResult = null;
+  }
+
+  if (!result) {
+    root.innerHTML = `
+      <div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); padding:30px; text-align:center; margin:20px 0;">
+        <span style="font-size:3rem; display:block; margin-bottom:16px;">📈</span>
+        <h3 style="font-family:var(--font-display); font-size:1.15rem; font-weight:700; color:var(--text-primary); margin-bottom:8px;">Proyección no disponible temporalmente</h3>
+        <p style="font-size:0.88rem; color:var(--text-secondary); max-width:500px; margin:0 auto 20px auto;">
+          No se ha podido calcular la proyección financiera debido a inconsistencias estructurales o datos de tiempo insuficientes en el libro diario contable. El resto de la workstation sigue plenamente operativa.
+        </p>
+        <div style="font-size:0.78rem; font-family:var(--font-mono); color:var(--red); background:rgba(0,0,0,0.15); padding:8px 12px; border-radius:var(--radius-sm); display:inline-block;">
+          Error: ${STATE.auditTrail?.filter(a => a.action === 'DEGRADACIÓN' && a.detail.includes('buildForecast')).pop()?.detail || 'Fallo técnico en el motor de proyecciones'}
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   const { scenarios, forecastMonths, alertas, baselineMode, confidence } = result;
   const isLowConf = confidence && confidence.confidenceLevel !== 'reliable';
   const isBlocked = confidence && (confidence.confidenceLevel === 'blocked' || confidence.confidenceLevel === 'indicative');
@@ -229,7 +253,7 @@ function renderForecast() {
         <!-- Gráfico SVG -->
         <div class="card">
           <div class="card-title">📈 Evolución de Caja — 12 Meses</div>
-          ${_buildSVGChart(scenarios, forecastMonths)}
+          <div id="forecast-fan-container"></div>
           <div style="display:flex;gap:20px;margin-top:12px;justify-content:center;flex-wrap:wrap;">
             <span style="font-size:0.78rem;color:var(--cyan);display:flex;align-items:center;gap:6px;"><span style="width:20px;height:2px;background:var(--cyan);display:inline-block;"></span>Base</span>
             <span style="font-size:0.78rem;color:var(--green);display:flex;align-items:center;gap:6px;"><span style="width:20px;height:2px;background:var(--green);display:inline-block;border-top:2px dashed var(--green);"></span>Optimista</span>
@@ -270,6 +294,9 @@ function renderForecast() {
       </div>
     </div>`;
 
+  // Renderizar fan chart con la función centralizada en app.js (soporta doble vista UI/Print)
+  renderForecastFanChart('forecast-fan-container', STATE.analysisResult, 'ui');
+
   // Event listeners
   root.querySelectorAll('.fc-scenario-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -307,65 +334,3 @@ function _sliderRow(id, label, value, min, max, step, unit, color) {
   </div>`;
 }
 
-function _buildSVGChart(scenarios, months) {
-  const W = 560, H = 180, PAD = { t: 10, r: 10, b: 30, l: 50 };
-  const iW = W - PAD.l - PAD.r;
-  const iH = H - PAD.t - PAD.b;
-
-  const allVals = [
-    ...scenarios.base.map(r => r.caja),
-    ...scenarios.optimista.map(r => r.caja),
-    ...scenarios.pesimista.map(r => r.caja)
-  ];
-  const minV = Math.min(...allVals, 0);
-  const maxV = Math.max(...allVals, 1);
-  const range = maxV - minV || 1;
-
-  const xScale = i => PAD.l + (i / 11) * iW;
-  const yScale = v => PAD.t + iH - ((v - minV) / range) * iH;
-
-  function makePath(data, color, dashed = false) {
-    const d = data.map((r, i) => `${i === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(r.caja).toFixed(1)}`).join(' ');
-    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" ${dashed ? 'stroke-dasharray="5,4"' : ''} stroke-linecap="round" stroke-linejoin="round"/>`;
-  }
-
-  // Línea de cero
-  const y0 = yScale(0);
-  const zeroLine = y0 >= PAD.t && y0 <= PAD.t + iH
-    ? `<line x1="${PAD.l}" y1="${y0.toFixed(1)}" x2="${W - PAD.r}" y2="${y0.toFixed(1)}" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="3,3"/>`
-    : '';
-
-  // Etiquetas eje Y (3 ticks)
-  const fmt = v => {
-    const abs = Math.abs(v);
-    if (abs >= 1000000) return `${(v / 1000000).toFixed(1)}M€`;
-    if (abs >= 1000) return `${(v / 1000).toFixed(0)}k€`;
-    return `${v.toFixed(0)}€`;
-  };
-  const ticks = [minV, (minV + maxV) / 2, maxV];
-  const yLabels = ticks.map(v => `
-    <text x="${PAD.l - 6}" y="${(yScale(v) + 4).toFixed(1)}" text-anchor="end"
-      style="font-size:9px;fill:var(--text-muted);">${fmt(v)}</text>
-    <line x1="${PAD.l}" y1="${yScale(v).toFixed(1)}" x2="${W - PAD.r}" y2="${yScale(v).toFixed(1)}"
-      stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
-  `).join('');
-
-  // Etiquetas eje X (cada 3 meses)
-  const xLabels = months
-    .filter((_, i) => i % 3 === 0 || i === 11)
-    .map((m, _, arr) => {
-      const i = months.indexOf(m);
-      return `<text x="${xScale(i).toFixed(1)}" y="${(H - 6).toFixed(1)}" text-anchor="middle" style="font-size:9px;fill:var(--text-muted);">${m}</text>`;
-    }).join('');
-
-  return `<div style="overflow-x:auto;">
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block;">
-      ${yLabels}
-      ${zeroLine}
-      ${makePath(scenarios.optimista, 'var(--green)', true)}
-      ${makePath(scenarios.pesimista, 'var(--red)', true)}
-      ${makePath(scenarios.base, 'var(--cyan)', false)}
-      ${xLabels}
-    </svg>
-  </div>`;
-}

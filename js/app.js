@@ -3,6 +3,29 @@
  * orquestación de módulos y renderizado de todas las secciones.
  */
 
+// ---- Medición de Long Tasks Global (Fase 5) ----
+if (typeof PerformanceObserver !== 'undefined') {
+  const observer = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) {
+      if (entry.duration > 50) {
+        console.warn(`[APTKI] [LONG TASK DETECTADO] Duración: ${entry.duration.toFixed(2)}ms, inicio: ${entry.startTime.toFixed(2)}ms`);
+        if (entry.duration > 200) {
+          console.error(`[APTKI] [BLOQUEO GRAVE DETECTADO] Tarea larga > 200ms: ${entry.duration.toFixed(2)}ms!`);
+        } else if (entry.duration > 100) {
+          console.warn(`[APTKI] [BLOQUEO SIGNIFICATIVO DETECTADO] Tarea larga > 100ms: ${entry.duration.toFixed(2)}ms!`);
+        }
+      }
+    }
+  });
+  try {
+    observer.observe({ entryTypes: ['longtask'] });
+    console.log('[APTKI] PerformanceObserver de Long Tasks inicializado correctamente.');
+  } catch (e) {
+    console.warn('[APTKI] PerformanceObserver de longtask no soportado en este navegador:', e.message);
+  }
+}
+
+
 // ---- Integración con store.js (Fase 2) ----
 // El objeto STATE y appStore se inicializan de forma reactiva en store.js
 
@@ -13,8 +36,26 @@ appStore.subscribe('analysisResult', () => {
   }
 });
 
+// Invalidación reactiva de caché y recálculo dinámico ante cambios en mapeos o periodificaciones
+const triggerRecalculate = () => {
+  if (STATE.parsedLedger && STATE.selectedProfile) {
+    monthlyAnalysisCache = null; // Limpiar caché ante recálculo reactivo
+    STATE.analysisResult = analyzeLedger(
+      STATE.parsedLedger,
+      STATE.selectedProfile.id,
+      STATE.customMapping,
+      STATE.approvedAccruals || [],
+      STATE.contextChecklist
+    );
+  }
+};
+
+appStore.subscribe('customMapping', triggerRecalculate);
+appStore.subscribe('approvedAccruals', triggerRecalculate);
+
 appStore.subscribe('parsedLedger', (parsed) => {
   if (parsed) {
+    monthlyAnalysisCache = null; // Limpiar caché para nuevo libro cargado
     renderParseSummary(parsed);
     if (parsed.anomalies) renderAnomalies(parsed.anomalies);
     if (parsed.entries) renderPreviewTable();
@@ -36,7 +77,11 @@ appStore.subscribe('ui.anomalyFilter', () => {
 });
 
 // Alerta reactiva en el menú de Defensa por Runway crítico (Libro Diario Real)
+// GUARD: Solo se activa tras completar el onboarding (Paso 4 → Dashboard).
+// Evita toasts prematuros durante los pasos de carga/mapping/devengos.
 appStore.subscribe('analysisResult', (result) => {
+  if (!STATE._onboardingComplete) return;
+
   const navDefensa = document.getElementById('nav-defensa');
   if (!navDefensa) return;
 
@@ -52,7 +97,10 @@ appStore.subscribe('analysisResult', (result) => {
 });
 
 // Alerta reactiva en el menú de Defensa por Runway crítico (Datos Simulados)
+// GUARD: Mismo principio que arriba — sin toast hasta completar onboarding.
 appStore.subscribe('defensaSimulacionInputs', (inputs) => {
+  if (!STATE._onboardingComplete) return;
+
   const navDefensa = document.getElementById('nav-defensa');
   if (!navDefensa) return;
 
@@ -100,7 +148,7 @@ function showToast(msg, type = 'info', ms = 3500) {
  * @param {string} sectionId - El ID de la sección a mostrar (ej. 'dashboard', 'scoring').
  * @returns {void}
  */
-function navigate(sectionId) {
+function navigate(sectionId, onComplete) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   const sec = document.getElementById('section-' + sectionId);
@@ -127,11 +175,15 @@ function navigate(sectionId) {
   }
 
   // Renderizar sección si tiene datos
-  if (sectionId === 'dashboard' && STATE.analysisResult) renderDashboard();
-  if (sectionId === 'scoring') renderScorer();
-  if (sectionId === 'forecast') renderForecast();
-  if (sectionId === 'defensa') renderDefensa();
-  if (sectionId === 'cartera') renderCarteraTab();
+  if (sectionId === 'dashboard' && STATE.analysisResult) {
+    renderDashboard(onComplete);
+  } else {
+    if (sectionId === 'scoring') renderScorer();
+    if (sectionId === 'forecast') renderForecast();
+    if (sectionId === 'defensa') renderDefensa();
+    if (sectionId === 'cartera') renderCarteraTab();
+    if (typeof onComplete === 'function') onComplete();
+  }
 }
 
 document.querySelectorAll('.nav-item').forEach(btn => {
@@ -796,7 +848,16 @@ function renderAccrualsTable() {
 }
 
 // ---- PASO 4: Goto Dashboard ----
+// ESTRATEGIA DE RESILIENCIA: El análisis core (analyzeLedger) es obligatorio.
+// Scoring y Forecast son pre-cálculos opcionales: si fallan, el Dashboard abre
+// igualmente con degradación explícita registrada en audit trail y STATE.
 document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
+  // Protección contra doble click / re-procesados concurrentes
+  if (STATE._isProcessingDashboard) {
+    console.warn('[APTKI] Intento de re-generación ignorado: proceso ya en ejecución.');
+    return;
+  }
+
   // Gate de anomalías críticas: bloqueo visual, no funcional.
   // Solo bloqueamos si el parseo mismo falló (0 entries válidas).
   // Si hay anomalías críticas pero el libro tiene datos, dejamos pasar con advertencia.
@@ -812,53 +873,493 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
     }
   }
 
-  // Ejecutamos el analysis final con el custom mapping, devengos aprobados y contexto
-  STATE.analysisResult = analyzeLedger(
-    STATE.parsedLedger, 
-    STATE.selectedProfile.id, 
-    STATE.customMapping,
-    STATE.approvedAccruals || [],
-    STATE.contextChecklist
-  );
+  // ==========================================
+  // PIPELINE ASÍNCRONO DE PROCESAMIENTO (FASE 5)
+  // INSTRUMENTADO CON PERFORMANCE.NOW() Y MEDIDOR DE LONG TASKS
+  // ==========================================
+  console.log('[APTKI] === INICIO PIPELINE DASHBOARD ===');
+  const tTotalStart = performance.now();
+  const tClick = performance.now();
   
-  // Flag para el checklist
-  STATE.accrualsReviewed = true;
+  // Paso A: UI Lock y Mostrar Spinner (Inmediato/Síncrono)
+  STATE._isProcessingDashboard = true;
+  const btn = document.getElementById('btn-goto-dashboard');
+  if (btn) btn.disabled = true;
 
-  // Audit trail
-  const remappedCount = STATE.customMapping ? Object.keys(STATE.customMapping).length : 0;
-  const accrualCount = (STATE.approvedAccruals || []).length;
-  logAudit('Perfil seleccionado', `${STATE.selectedProfile.name} (${STATE.selectedProfile.id})`);
-  if (remappedCount > 0) logAudit('Remapeo manual', `${remappedCount} cuentas reclasificadas`);
-  if (accrualCount > 0) logAudit('Devengos aprobados', `${accrualCount} periodificaciones aplicadas`);
-  logAudit('Dashboard generado', `Trust Score: ${STATE.analysisResult.confidence.trustScore}/100 · Confianza: ${STATE.analysisResult.confidence.confidenceLabel} · EBITDA Suspect: ${STATE.analysisResult.confidence.ebitdaSuspect ? 'SÍ' : 'NO'}`);
-
-  // Pre-calcular scoring con defaults (inputs vacíos) para que el tab ya tenga datos
-  STATE.scoringResult = scoreFinanciacion(STATE.analysisResult, STATE.scoringInputs || {});
-
-  // Pre-calcular forecast con defaults del perfil seleccionado
-  if (typeof buildForecast === 'function') {
-    FORECAST_HYP = null; // reset para que _getDefaultHyp() use el perfil actual
-    STATE.forecastResult = buildForecast(STATE.analysisResult, _getDefaultHyp());
+  const loader = document.getElementById('dashboard-loader-overlay');
+  const msg = document.getElementById('loader-message');
+  if (loader) {
+    loader.style.display = 'flex';
+    loader.style.opacity = '1';
   }
-  
-  // Actualizamos sum-ingresos y sum-gastos en el step 1 por completitud (opcional pero queda bien)
-  document.getElementById('sum-ingresos').textContent =
-    new Intl.NumberFormat('es-ES', {maximumFractionDigits:0}).format(STATE.analysisResult.totales.ingresos) + '€';
-  document.getElementById('sum-gastos').textContent =
-    new Intl.NumberFormat('es-ES', {maximumFractionDigits:0}).format(STATE.analysisResult.totales.gastos) + '€';
+  if (msg) msg.textContent = 'Iniciando síntesis del balance...';
 
-  showToast('Dashboard analítico generado', 'success');
-  navigate('dashboard');
+  const tShowLoader = performance.now();
+  const stepADuration = tShowLoader - tClick;
+  console.log(`[APTKI] [Paso A] Show Loader completado en ${stepADuration.toFixed(2)}ms`);
+
+  // Esperar a que el navegador complete el pintado inicial del cargador y deshabilitado del botón
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const tDelay = performance.now();
+      console.log(`[APTKI] Delay para repintado DOM del loader: ${(tDelay - tShowLoader).toFixed(2)}ms`);
+
+      // Paso B: Análisis Core Principal
+      if (msg) msg.textContent = 'Analizando libro contable y auditoría de anomalías...';
+
+      setTimeout(() => {
+        let tCoreStart, tCoreEnd;
+        try {
+          tCoreStart = performance.now();
+          STATE.analysisResult = analyzeLedger(
+            STATE.parsedLedger, 
+            STATE.selectedProfile.id, 
+            STATE.customMapping,
+            STATE.approvedAccruals || [],
+            STATE.contextChecklist
+          );
+          tCoreEnd = performance.now();
+        } catch (errCore) {
+          console.error('[APTKI] Error fatal en analyzeLedger:', errCore);
+          logAudit('ERROR CRÍTICO', `analyzeLedger falló: ${errCore.message}`);
+          showToast('⛔ Error crítico en el análisis contable. Revisa la consola.', 'error', 8000);
+          
+          // Revertir estados
+          if (btn) btn.disabled = false;
+          STATE._isProcessingDashboard = false;
+          if (loader) loader.style.display = 'none';
+          return;
+        }
+
+        const coreDuration = tCoreEnd - tCoreStart;
+        logAudit('Performance', `Paso B (analyzeLedger completo): ${coreDuration.toFixed(1)}ms`);
+        console.log(`[APTKI] [Paso B] analyzeLedger core completado en ${coreDuration.toFixed(2)}ms`);
+        
+        // Medición de Long Tasks (>50ms)
+        if (coreDuration > 50) {
+          console.warn(`[APTKI] [LONG TASK] Paso B analyzeLedger tardó > 50ms: ${coreDuration.toFixed(2)}ms`);
+          if (coreDuration > 200) {
+            console.warn(`[APTKI] [BLOQUEO GRAVE] Paso B tardó > 200ms: ${coreDuration.toFixed(2)}ms. Candidato a Web Worker.`);
+          }
+        }
+
+        STATE.accrualsReviewed = true;
+
+        const remappedCount = STATE.customMapping ? Object.keys(STATE.customMapping).length : 0;
+        const accrualCount = (STATE.approvedAccruals || []).length;
+        logAudit('Perfil seleccionado', `${STATE.selectedProfile.name} (${STATE.selectedProfile.id})`);
+        if (remappedCount > 0) logAudit('Remapeo manual', `${remappedCount} cuentas reclasificadas`);
+        if (accrualCount > 0) logAudit('Devengos aprobados', `${accrualCount} periodificaciones aplicadas`);
+        logAudit('Dashboard generado', `Trust Score: ${STATE.analysisResult.confidence.trustScore}/100 · Confianza: ${STATE.analysisResult.confidence.confidenceLabel} · EBITDA Suspect: ${STATE.analysisResult.confidence.ebitdaSuspect ? 'SÍ' : 'NO'}`);
+
+        // Paso C: Pre-cálculo de Scoring (Vía requestIdleCallback / Asíncrono no-bloqueante)
+        const runScoring = () => {
+          if (msg) msg.textContent = 'Evaluando scoring de financiación pública...';
+
+          const doScoring = () => {
+            const tScStart = performance.now();
+            try {
+              STATE.scoringResult = scoreFinanciacion(STATE.analysisResult, STATE.scoringInputs || {});
+            } catch (errScoring) {
+              console.error('[APTKI] Error en scoreFinanciacion (degradación elegante):', errScoring);
+              logAudit('DEGRADACIÓN', `scoreFinanciacion falló: ${errScoring.message}. Scoring no disponible.`);
+              STATE.scoringResult = null;
+            }
+            const tScEnd = performance.now();
+            const scDuration = tScEnd - tScStart;
+            logAudit('Performance', `Paso C (scoreFinanciacion): ${scDuration.toFixed(1)}ms`);
+            console.log(`[APTKI] [Paso C] scoreFinanciacion completado en ${scDuration.toFixed(2)}ms`);
+            if (scDuration > 50) {
+              console.warn(`[APTKI] [LONG TASK] Paso C scoreFinanciacion tardó > 50ms: ${scDuration.toFixed(2)}ms`);
+            }
+
+            // Proceder a Paso D
+            runForecast();
+          };
+
+          if (window.requestIdleCallback) {
+            window.requestIdleCallback(doScoring, { timeout: 100 });
+          } else {
+            setTimeout(doScoring, 20);
+          }
+        };
+
+        // Paso D: Pre-cálculo de Forecast (Vía requestIdleCallback / Asíncrono no-bloqueante)
+        const runForecast = () => {
+          if (msg) msg.textContent = 'Proyectando previsiones y escenarios de caja...';
+
+          const doForecast = () => {
+            const tFoStart = performance.now();
+            try {
+              if (typeof buildForecast === 'function') {
+                FORECAST_HYP = null; // reset
+                STATE.forecastResult = buildForecast(STATE.analysisResult, _getDefaultHyp());
+              }
+            } catch (errForecast) {
+              console.error('[APTKI] Error en buildForecast (degradación elegante):', errForecast);
+              logAudit('DEGRADACIÓN', `buildForecast falló: ${errForecast.message}. Forecast no disponible.`);
+              STATE.forecastResult = null;
+            }
+            const tFoEnd = performance.now();
+            const foDuration = tFoEnd - tFoStart;
+            logAudit('Performance', `Paso D (buildForecast): ${foDuration.toFixed(1)}ms`);
+            console.log(`[APTKI] [Paso D] buildForecast completado en ${foDuration.toFixed(2)}ms`);
+            if (foDuration > 50) {
+              console.warn(`[APTKI] [LONG TASK] Paso D buildForecast tardó > 50ms: ${foDuration.toFixed(2)}ms`);
+            }
+
+            // Proceder a Paso E
+            runRenderAndCache();
+          };
+
+          if (window.requestIdleCallback) {
+            window.requestIdleCallback(doForecast, { timeout: 100 });
+          } else {
+            setTimeout(doForecast, 20);
+          }
+        };
+
+        // Paso E: Generación del Caché Mensual y Renderizado (requestAnimationFrame)
+        const runRenderAndCache = () => {
+          if (msg) msg.textContent = 'Construyendo tendencias y cargando panel de control...';
+
+          requestAnimationFrame(() => {
+            const tCacheStart = performance.now();
+            // Esto construirá el caché de análisis mensuales una sola vez. 
+            // renderDashboard reutilizará este caché para evitar el doble cálculo.
+            monthlyAnalysisCache = buildMonthlyAnalysisCache(STATE.analysisResult);
+            const tCacheEnd = performance.now();
+            const cacheDuration = tCacheEnd - tCacheStart;
+            
+            logAudit('Performance', `Paso E (buildMonthlyAnalysisCache): ${cacheDuration.toFixed(1)}ms`);
+            console.log(`[APTKI] [Paso E] buildMonthlyAnalysisCache completado en ${cacheDuration.toFixed(2)}ms`);
+            
+            if (cacheDuration > 50) {
+              console.warn(`[APTKI] [LONG TASK] Paso E buildMonthlyAnalysisCache tardó > 50ms: ${cacheDuration.toFixed(2)}ms`);
+            }
+
+            // Actualizar resumen visual del Paso 1
+            try {
+              document.getElementById('sum-ingresos').textContent =
+                new Intl.NumberFormat('es-ES', {maximumFractionDigits:0}).format(STATE.analysisResult.totales.ingresos) + '€';
+              document.getElementById('sum-gastos').textContent =
+                new Intl.NumberFormat('es-ES', {maximumFractionDigits:0}).format(STATE.analysisResult.totales.gastos) + '€';
+            } catch (_) {}
+
+            // Navegación garantizada al Dashboard
+            showToast('Dashboard analítico generado', 'success');
+            
+            const tNavStart = performance.now();
+            navigate('dashboard', () => {
+              const tNavEnd = performance.now();
+              const navDuration = tNavEnd - tNavStart;
+              console.log(`[APTKI] [Paso E - Navegación/Render] navigate('dashboard') + renderDashboard completo en ${navDuration.toFixed(2)}ms`);
+              if (navDuration > 50) {
+                console.warn(`[APTKI] [LONG TASK] Navegación/Render Dashboard tardó > 50ms: ${navDuration.toFixed(2)}ms`);
+                if (navDuration > 100) {
+                  console.warn(`[APTKI] [BLOQUEO GRAVE] El pintado del dashboard bloqueó > 100ms: ${navDuration.toFixed(2)}ms`);
+                }
+              }
+
+              STATE._onboardingComplete = true;
+
+              // Alertas de Runway
+              if (STATE.analysisResult && STATE.analysisResult.totales && STATE.analysisResult.totales.burnRateNeto > 0) {
+                const runway = STATE.analysisResult.totales.cajaFinal / STATE.analysisResult.totales.burnRateNeto;
+                const navDefensa = document.getElementById('nav-defensa');
+                if (runway < 3 && navDefensa) {
+                  navDefensa.classList.add('pulse-danger');
+                  showToast('⚠️ Startup en Runway Crítico (< 3 meses). Se ha activado el Plan de Choque de 100 Días en la pestaña Defensa.', 'error', 6000);
+                }
+              }
+
+              // Proceder a Paso F
+              runCleanup(cacheDuration);
+            });
+          });
+        };
+
+        // Paso F: Ocultación del Cargador y Restablecimiento del Estado
+        const runCleanup = (cacheDuration) => {
+          requestAnimationFrame(() => {
+            if (loader) {
+              loader.style.opacity = '0';
+              setTimeout(() => {
+                loader.style.display = 'none';
+                loader.style.opacity = '1'; // Restablecer opacidad
+              }, 300);
+            }
+            if (btn) btn.disabled = false;
+            STATE._isProcessingDashboard = false;
+
+            const tTotalEnd = performance.now();
+            const cleanupDuration = tTotalEnd - tTotalStart;
+            logAudit('Performance', `Generación completa Dashboard: ${cleanupDuration.toFixed(1)}ms`);
+            console.log(`[APTKI] Dashboard generado en ${cleanupDuration.toFixed(2)}ms (Caché Mensual: ${cacheDuration.toFixed(2)}ms)`);
+            console.log('[APTKI] === FIN PIPELINE DASHBOARD ===');
+          });
+        };
+
+        // Iniciar la cascada asíncrona
+        runScoring();
+
+      }, 50); // Timeout mínimo para asegurar el repintado del DOM del loader overlay
+    });
+  });
 });
 
+let monthlyAnalysisCache = null;
+
+/**
+ * buildMonthlyAnalysisCache(data)
+ * Pre-calcula y cachea los resultados acumulados de análisis mes a mes para
+ * renderizar la evolución histórica de cualquier KPI sin redundancia ni sobrecarga.
+ */
+function buildMonthlyAnalysisCache(data) {
+  if (!STATE.parsedLedger || !STATE.parsedLedger.entries || !data.meta || !data.meta.months) {
+    return [];
+  }
+  const months = [...data.meta.months].sort();
+  const cache = [];
+  const profileId = STATE.selectedProfile?.id || 'saas';
+  const customMapping = STATE.customMapping;
+  const approvedAccruals = STATE.approvedAccruals || [];
+  const contextChecklist = STATE.contextChecklist;
+
+  const entriesByMonth = {};
+  for (const entry of STATE.parsedLedger.entries) {
+    if (!entriesByMonth[entry.monthKey]) {
+      entriesByMonth[entry.monthKey] = [];
+    }
+    entriesByMonth[entry.monthKey].push(entry);
+  }
+
+  const accumulatedEntries = [];
+  const accumulatedByMonth = {};
+
+  for (const m of months) {
+    if (entriesByMonth[m]) {
+      accumulatedEntries.push(...entriesByMonth[m]);
+    }
+    accumulatedByMonth[m] = STATE.parsedLedger.byMonth[m] || [];
+
+    const subParsedLedger = {
+      entries: [...accumulatedEntries],
+      byMonth: { ...accumulatedByMonth },
+      meta: {
+        ...STATE.parsedLedger.meta,
+        months: months.filter(x => x <= m)
+      },
+      anomalies: [] // Optimización de rendimiento
+    };
+
+    const subAnalysisResult = analyzeLedger(
+      subParsedLedger,
+      profileId,
+      customMapping,
+      approvedAccruals,
+      contextChecklist,
+      { skipAnomalies: true }
+    );
+
+    cache.push({
+      month: m,
+      analysisResult: subAnalysisResult
+    });
+  }
+  return cache;
+}
+
+/**
+ * getKpiSparkline(kpi, data, isUniversal)
+ * Genera un minigráfico SVG de tendencia de fondo con escalado robusto
+ * y degradado basado en los meses históricos.
+ */
+function getKpiSparkline(kpi, data, isUniversal = true) {
+  const cache = monthlyAnalysisCache || [];
+  if (cache.length < 2) return '';
+
+  const values = [];
+  for (const item of cache) {
+    const subData = item.analysisResult;
+    let val = null;
+    if (isUniversal) {
+      val = kpi.compute(subData);
+    } else {
+      const kpiResults = {};
+      const profile = STATE.selectedProfile;
+      if (profile && profile.kpis) {
+        for (const pk of profile.kpis) {
+          const v = pk.compute(subData, kpiResults, STATE.extraInputs);
+          kpiResults[pk.id] = v;
+        }
+      }
+      val = kpiResults[kpi.id];
+    }
+
+    if (val !== null && val !== undefined && typeof val === 'number' && !isNaN(val)) {
+      values.push(val);
+    } else if (val && typeof val === 'object' && val.error) {
+      values.push(0);
+    } else {
+      values.push(0);
+    }
+  }
+
+  if (values.length < 2) return '';
+
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  const range = maxVal - minVal;
+
+  const points = values.map((v, idx) => {
+    const x = (idx / (values.length - 1)) * 100;
+    const y = range === 0 ? 20 : 36 - ((v - minVal) / range) * 32;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  return `
+    <svg class="kpi-sparkline" viewBox="0 0 100 40" preserveAspectRatio="none">
+      <polyline points="${points}" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  `;
+}
+
+/**
+ * getKpiBadgeTrustHTML(kpiId, confidence)
+ * Genera un distintivo de fiabilidad interactivo con tooltip flotante
+ * que detalla el checklist de consistencia de la startup.
+ */
+function getKpiBadgeTrustHTML(kpiId, confidence) {
+  const score = confidence.trustScore ?? 100;
+  const anomalies = STATE.analysisResult?.anomalies || [];
+  
+  let trustClass = 'trust-high';
+  let trustLabel = 'ALTA';
+  if (score >= 80) {
+    trustClass = 'trust-high';
+    trustLabel = 'ALTA';
+  } else if (score >= 65) {
+    trustClass = 'trust-medium-high';
+    trustLabel = 'M-ALTA';
+  } else if (score >= 45) {
+    trustClass = 'trust-medium-low';
+    trustLabel = 'M-BAJA';
+  } else {
+    trustClass = 'trust-low';
+    trustLabel = 'BAJA';
+  }
+
+  // Generar checklist de auditoría contextualizada
+  const items = [];
+
+  // 1. Asientos balanceados
+  const hasDescuadre = anomalies.some(a => a.id === 'asiento_descuadrado' || a.id === 'descuadre_contable');
+  if (hasDescuadre) {
+    items.push(`<li class="tooltip-list-item danger">✗ Asientos Desbalanceados (-20)</li>`);
+  } else {
+    items.push(`<li class="tooltip-list-item checked">✓ Ecuación de Asientos Correcta</li>`);
+  }
+
+  // 2. Integridad del EBITDA
+  if (confidence.ebitdaSuspect) {
+    items.push(`<li class="tooltip-list-item danger">✗ Integridad EBITDA Comprometida</li>`);
+  } else {
+    items.push(`<li class="tooltip-list-item checked">✓ EBITDA Operativo Fiable</li>`);
+  }
+
+  // 3. Devengos / Periodificaciones
+  const accrualCount = (STATE.approvedAccruals || []).length;
+  if (accrualCount > 0) {
+    items.push(`<li class="tooltip-list-item checked">✓ Devengo Ajustado (${accrualCount} items)</li>`);
+  } else {
+    items.push(`<li class="tooltip-list-item warn">⚠ Sin Periodificaciones Activas</li>`);
+  }
+
+  // 4. Patrones de registros atípicos (Cifras redondas / domingos)
+  const hasRedondas = anomalies.some(a => a.id === 'cifras_redondas');
+  const hasDomingos = anomalies.some(a => a.id === 'facturas_domingo');
+  if (hasRedondas && hasDomingos) {
+    items.push(`<li class="tooltip-list-item danger">✗ Cifras Redondas y Domingos</li>`);
+  } else if (hasRedondas) {
+    items.push(`<li class="tooltip-list-item warn">⚠ Alta Concentración Redondas</li>`);
+  } else if (hasDomingos) {
+    items.push(`<li class="tooltip-list-item warn">⚠ Registros en Domingo</li>`);
+  } else {
+    items.push(`<li class="tooltip-list-item checked">✓ Patrones Contables Normales</li>`);
+  }
+
+  // 5. Dependencia Cliente Único
+  const hasClienteUnico = anomalies.some(a => a.id === 'cliente_unico');
+  if (hasClienteUnico) {
+    items.push(`<li class="tooltip-list-item danger">✗ Dependencia Cliente Único</li>`);
+  } else {
+    items.push(`<li class="tooltip-list-item checked">✓ Cartera de Clientes Diversa</li>`);
+  }
+
+  // 6. Runway / Viabilidad Financiera
+  let runwayVal = null;
+  if (STATE.analysisResult && STATE.analysisResult.totales && STATE.analysisResult.totales.burnRateNeto > 0) {
+    runwayVal = STATE.analysisResult.totales.cajaFinal / STATE.analysisResult.totales.burnRateNeto;
+  }
+  if (runwayVal !== null) {
+    if (runwayVal < 3) {
+      items.push(`<li class="tooltip-list-item danger">✗ Runway Crítico (< 3 meses)</li>`);
+    } else if (runwayVal < 6) {
+      items.push(`<li class="tooltip-list-item warn">⚠ Runway Ajustado (< 6 meses)</li>`);
+    } else {
+      items.push(`<li class="tooltip-list-item checked">✓ Runway Saludable (${runwayVal.toFixed(1)}m)</li>`);
+    }
+  }
+
+  const tooltipHtml = `
+    <div class="kpi-badge-trust-tooltip">
+      <div class="tooltip-title">
+        <span>Chequeo de Confianza</span>
+        <span>${score}/100</span>
+      </div>
+      <ul class="tooltip-list">
+        ${items.join('')}
+      </ul>
+    </div>
+  `;
+
+  return `
+    <div class="kpi-badge-trust ${trustClass}">
+      🛡️ ${trustLabel}
+      ${tooltipHtml}
+    </div>
+  `;
+}
+
 // ---- Render: Dashboard ----
-function renderDashboard() {
-  if (!STATE.analysisResult) return;
+// ---- Render: Dashboard ----
+function renderDashboard(onComplete) {
+  if (!STATE.analysisResult) {
+    if (typeof onComplete === 'function') onComplete();
+    return;
+  }
   const data = STATE.analysisResult;
   const profile = STATE.selectedProfile;
   const confidence = data.confidence || {};
 
-  // Banner de Confianza (Nuevo Fase 5)
+  const tRenderStart = performance.now();
+  console.log('[APTKI] --- INICIO RENDER DASHBOARD ---');
+
+  // 1. Evitar regeneración redundante de caché mensual
+  if (!monthlyAnalysisCache) {
+    const tSubCacheStart = performance.now();
+    monthlyAnalysisCache = buildMonthlyAnalysisCache(data);
+    const tSubCacheEnd = performance.now();
+    console.log(`[APTKI] [Render] buildMonthlyAnalysisCache (CÁLCULO REAL): ${(tSubCacheEnd - tSubCacheStart).toFixed(2)}ms`);
+    if ((tSubCacheEnd - tSubCacheStart) > 50) {
+      console.warn(`[APTKI] [LONG TASK] buildMonthlyAnalysisCache secundario tardó > 50ms: ${(tSubCacheEnd - tSubCacheStart).toFixed(2)}ms`);
+    }
+  } else {
+    console.log('[APTKI] [Render] buildMonthlyAnalysisCache EVITADO (uso de caché existente)');
+  }
+
+  // 2. Banner de Confianza
   const banner = document.getElementById('dashboard-confidence-banner');
   if (banner) {
     if (confidence.confidenceLevel !== 'reliable') {
@@ -887,6 +1388,9 @@ function renderDashboard() {
   document.getElementById('dashboard-empty').style.display = 'none';
   document.getElementById('dashboard-content').style.display = 'block';
 
+  // 3. Renderizado de Estructura Principal y KPIs Iniciales (Síncrono/Rápido)
+  const tKpis0 = performance.now();
+  
   // Trust Score
   renderTrustScore(data.confidence || { trustScore: 0, confidenceLabel: '', confidenceLevel: 'reliable' });
 
@@ -894,12 +1398,7 @@ function renderDashboard() {
   renderAuditTrail();
 
   // Hallazgos Accionables
-  // Fuente canónica: analysisResult.anomalies (parser + analyzer combinadas)
   renderActionableFindings(STATE.analysisResult.anomalies || []);
-
-  // Waterfall y Narrative
-  renderWaterfall(data);
-  if (typeof renderNarrative === 'function') renderNarrative();
 
   // KPIs universales
   const kpiUniversalEl = document.getElementById('kpi-universal');
@@ -917,12 +1416,17 @@ function renderDashboard() {
       desc = '⚠️ EBITDA Sospechoso: Anomalías graves invalidan la integridad de esta métrica.';
     }
 
+    const sparklineHtml = getKpiSparkline(kpi, data, true);
+    const trustBadgeHtml = getKpiBadgeTrustHTML(kpi.id, confidence);
+
     return `
       <div class="kpi-card status-${status} ${pulseClass}" title="${desc}">
+        ${trustBadgeHtml}
         <div class="kpi-label">${kpi.label}</div>
         <div class="kpi-value">${formatted}</div>
         <div class="kpi-sub ${(kpi.id === 'ebitda' && confidence.ebitdaSuspect) ? 'text-red' : ''}">${desc}</div>
         <div class="kpi-status">${getStatusIcon(status)}</div>
+        ${sparklineHtml}
       </div>
     `;
   }).join('');
@@ -941,12 +1445,18 @@ function renderDashboard() {
       kpiResults[kpi.id] = value;
       const status = getKpiStatus(kpi, value);
       const formatted = formatKpiValue(value, kpi.format);
+
+      const sparklineHtml = getKpiSparkline(kpi, data, false);
+      const trustBadgeHtml = getKpiBadgeTrustHTML(kpi.id, confidence);
+
       return `
         <div class="kpi-card status-${status}" title="${kpi.desc}">
+          ${trustBadgeHtml}
           <div class="kpi-label">${kpi.label}</div>
           <div class="kpi-value">${formatted}</div>
           <div class="kpi-sub">${kpi.desc}</div>
           <div class="kpi-status">${getStatusIcon(status)}</div>
+          ${sparklineHtml}
         </div>
       `;
     }).join('');
@@ -954,8 +1464,82 @@ function renderDashboard() {
     kpiPerfilSection.style.display = 'none';
   }
 
-  // PyG mensual
-  renderPyG(data.pygMensual);
+  const tKpis1 = performance.now();
+  console.log(`[APTKI] [Render] KPIs pintados síncronamente en ${(tKpis1 - tKpis0).toFixed(2)}ms`);
+
+  // 4. Renderizado Progresivo Asíncrono de Elementos Gráficos Pesados
+  // Colocamos spinners temporales elegantes mientras se programan los pintados progresivos
+  document.getElementById('waterfall-container').innerHTML = '<div class="loader-spinner-small"></div>';
+  document.getElementById('ebitda-chart-container').innerHTML = '<div class="loader-spinner-small"></div>';
+  document.getElementById('runway-burn-container').innerHTML = '<div class="loader-spinner-small"></div>';
+  document.getElementById('revenues-expenses-container').innerHTML = '<div class="loader-spinner-small"></div>';
+
+  const narrativeContainer = document.getElementById('narrative-container');
+  if (narrativeContainer) {
+    narrativeContainer.innerHTML = '<div class="loader-spinner-small"></div>';
+  }
+
+  const pygBody = document.getElementById('pyg-body');
+  if (pygBody) {
+    pygBody.innerHTML = '<tr><td colspan="100" style="text-align: center; padding: 30px;"><div class="loader-spinner-small"></div></td></tr>';
+  }
+
+  // Frame 1: Gráficos principales (Waterfall y EBITDA Divergente)
+  requestAnimationFrame(() => {
+    const tF1_0 = performance.now();
+    renderWaterfall(data, 'ui');
+    renderDivergingEbitdaChart('ebitda-chart-container', data, 'ui');
+    const tF1_1 = performance.now();
+    const f1Dur = tF1_1 - tF1_0;
+    console.log(`[APTKI] [Render Progresivo] Frame 1 (Waterfall & EBITDA) en ${f1Dur.toFixed(2)}ms`);
+    if (f1Dur > 50) {
+      console.warn(`[APTKI] [LONG TASK] Frame 1 de renderizado tardó > 50ms: ${f1Dur.toFixed(2)}ms`);
+    }
+
+    // Frame 2: Gráficos secundarios (Runway/Burn y Revenues/Expenses)
+    requestAnimationFrame(() => {
+      const tF2_0 = performance.now();
+      renderRunwayBurnChart('runway-burn-container', data, 'ui');
+      renderRevenuesExpensesChart('revenues-expenses-container', data, 'ui');
+      const tF2_1 = performance.now();
+      const f2Dur = tF2_1 - tF2_0;
+      console.log(`[APTKI] [Render Progresivo] Frame 2 (Runway & Revenues) en ${f2Dur.toFixed(2)}ms`);
+      if (f2Dur > 50) {
+        console.warn(`[APTKI] [LONG TASK] Frame 2 de renderizado tardó > 50ms: ${f2Dur.toFixed(2)}ms`);
+      }
+
+      // Frame 3: Resumen Ejecutivo / Argumentario Narrativo
+      requestAnimationFrame(() => {
+        const tF3_0 = performance.now();
+        if (typeof renderNarrative === 'function') renderNarrative();
+        const tF3_1 = performance.now();
+        const f3Dur = tF3_1 - tF3_0;
+        console.log(`[APTKI] [Render Progresivo] Frame 3 (Narrative) en ${f3Dur.toFixed(2)}ms`);
+        if (f3Dur > 50) {
+          console.warn(`[APTKI] [LONG TASK] Frame 3 de renderizado tardó > 50ms: ${f3Dur.toFixed(2)}ms`);
+        }
+
+        // Frame 4: Tabla PyG Mensual
+        requestAnimationFrame(() => {
+          const tF4_0 = performance.now();
+          renderPyG(data.pygMensual);
+          const tF4_1 = performance.now();
+          const f4Dur = tF4_1 - tF4_0;
+          console.log(`[APTKI] [Render Progresivo] Frame 4 (PyG) en ${f4Dur.toFixed(2)}ms`);
+          if (f4Dur > 50) {
+            console.warn(`[APTKI] [LONG TASK] Frame 4 de renderizado tardó > 50ms: ${f4Dur.toFixed(2)}ms`);
+          }
+
+          const tRenderEnd = performance.now();
+          console.log(`[APTKI] [Render Completo] Total renderizado progresivo: ${(tRenderEnd - tRenderStart).toFixed(2)}ms`);
+          
+          if (typeof onComplete === 'function') {
+            onComplete();
+          }
+        });
+      });
+    });
+  });
 }
 
 function renderPyG(pygMensual) {
@@ -1019,95 +1603,842 @@ function renderPyG(pygMensual) {
  * @param {Object} data - Objeto AnalysisResult completo calculado por analyzer.js.
  * @returns {void}
  */
-function renderWaterfall(data) {
-  const container = document.getElementById('waterfall-container');
+function renderWaterfall(data, mode = 'ui', customContainer = null) {
+  const container = customContainer || document.getElementById('waterfall-container');
   if (!container) return;
 
-  const t = data.totales;
-  const ingresos = t.ingresos;
-  const cogs = t.cogs;
-  const margenBruto = ingresos - cogs;
-  
-  // Separar personal del resto del OPEX
-  const personalTotal = Object.values(data.pygMensual).reduce((s, m) => s + m.personal, 0);
-  const opexOperativo = t.gastos - t.cogs - (t.amortizacion || 0) - (t.gastosFinancieros || 0);
-  const restoOpex = opexOperativo - personalTotal;
-  const ebitda = t.ebitda;
+  try {
+    const t = data.totales;
+    const ingresos = t.ingresos || 0;
+    const cogs = t.cogs || 0;
+    const margenBruto = ingresos - cogs;
+    
+    // Separar personal del resto del OPEX
+    const personalTotal = Object.values(data.pygMensual || {}).reduce((s, m) => s + (m.personal || 0), 0);
+    const opexOperativo = (t.gastos || 0) - cogs - (t.amortizacion || 0) - (t.gastosFinancieros || 0);
+    const restoOpex = Math.max(0, opexOperativo - personalTotal);
+    const ebitda = t.ebitda || 0;
 
-  const steps = [
-    { label: 'Ingresos', val: ingresos, type: 'total', color: 'var(--green)' },
-    { label: 'COGS', val: -cogs, type: 'diff', color: 'var(--red)' },
-    { label: 'Margen Bruto', val: margenBruto, type: 'subtotal', color: 'var(--cyan)' },
-    { label: 'Personal', val: -personalTotal, type: 'diff', color: 'var(--amber)' },
-    { label: 'Resto OPEX', val: -restoOpex, type: 'diff', color: 'var(--red)' },
-    { label: 'EBITDA', val: ebitda, type: 'final', color: ebitda >= 0 ? 'var(--green)' : 'var(--red)' }
-  ];
+    // Contrast colors for print and UI modes
+    const colors = mode === 'print' ? {
+      ingresos: '#374151', // Dark charcoal gray
+      cogs: '#6b7280',     // Medium gray
+      margen: '#111827',   // Deep black/gray
+      personal: '#9ca3af', // Light desaturated gray
+      restoOpex: '#6b7280',
+      ebitda: ebitda >= 0 ? '#374151' : '#dc2626'
+    } : {
+      ingresos: 'var(--green)',
+      cogs: 'var(--red)',
+      margen: 'var(--cyan)',
+      personal: 'var(--amber)',
+      restoOpex: 'var(--red)',
+      ebitda: ebitda >= 0 ? 'var(--green)' : 'var(--red)'
+    };
 
-  const maxVal = Math.max(ingresos, margenBruto, ebitda) * 1.1; // 10% margen superior
-  const minVal = Math.min(0, ebitda) * 1.1;
-  const range = maxVal - minVal || 1;
+    const steps = [
+      { label: 'Ingresos', val: ingresos, type: 'total', color: colors.ingresos },
+      { label: 'COGS', val: -cogs, type: 'diff', color: colors.cogs },
+      { label: 'Margen Bruto', val: margenBruto, type: 'subtotal', color: colors.margen },
+      { label: 'Personal', val: -personalTotal, type: 'diff', color: colors.personal },
+      { label: 'Resto OPEX', val: -restoOpex, type: 'diff', color: colors.restoOpex },
+      { label: 'EBITDA', val: ebitda, type: 'final', color: colors.ebitda }
+    ];
 
-  const W = 800, H = 220;
-  const PAD = { t: 20, r: 20, b: 30, l: 60 };
-  const iW = W - PAD.l - PAD.r;
-  const iH = H - PAD.t - PAD.b;
+    const maxVal = Math.max(ingresos, margenBruto, ebitda, 1000) * 1.12; 
+    const minVal = Math.min(0, ebitda) * 1.12;
+    const range = maxVal - minVal || 1;
 
-  const yScale = v => PAD.t + iH - ((v - minVal) / range) * iH;
-  const y0 = yScale(0); // linea base cero
+    const W = 800, H = 220;
+    const PAD = { t: 25, r: 25, b: 35, l: 65 };
+    const iW = W - PAD.l - PAD.r;
+    const iH = H - PAD.t - PAD.b;
 
-  const barWidth = (iW / steps.length) * 0.7;
-  const gap = (iW / steps.length) * 0.3;
+    // Robust yScale clamp logic
+    const yScale = v => {
+      const val = typeof v === 'number' && !isNaN(v) && isFinite(v) ? v : 0;
+      return PAD.t + iH - ((val - minVal) / range) * iH;
+    };
+    const y0 = yScale(0); 
 
-  let currentY = y0;
-  let svgContent = '';
+    const barWidth = (iW / steps.length) * 0.68;
+    const gap = (iW / steps.length) * 0.32;
 
-  const fmt = v => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(v) + '€';
+    let currentY = y0;
+    let svgContent = '';
 
-  steps.forEach((s, i) => {
-    const x = PAD.l + i * (barWidth + gap) + gap/2;
-    let y, h;
+    const fmt = v => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(v) + '€';
 
-    if (s.type === 'total' || s.type === 'subtotal' || s.type === 'final') {
-      y = yScale(Math.max(0, s.val));
-      h = Math.abs(yScale(s.val) - y0);
-      currentY = yScale(s.val); // actualizar base para los diffs
-    } else { // diff
-      if (s.val < 0) {
-        y = currentY; 
-        h = yScale(s.val) - yScale(0); // el tamaño del salto hacia abajo
-        currentY = y + h; // bajar la base
-      } else {
-        h = yScale(0) - yScale(s.val);
-        y = currentY - h;
-        currentY = y;
+    steps.forEach((s, i) => {
+      const x = PAD.l + i * (barWidth + gap) + gap/2;
+      let y, h;
+
+      if (s.type === 'total' || s.type === 'subtotal' || s.type === 'final') {
+        y = yScale(Math.max(0, s.val));
+        h = Math.abs(yScale(s.val) - y0);
+        currentY = yScale(s.val); 
+      } else { // diff
+        if (s.val < 0) {
+          y = currentY; 
+          h = yScale(s.val) - yScale(0); 
+          currentY = y + h; 
+        } else {
+          h = yScale(0) - yScale(s.val);
+          y = currentY - h;
+          currentY = y;
+        }
       }
+
+      h = Math.max(1, h); // math safety: avoid invisible 0px heights
+
+      const rectStroke = mode === 'print' ? 'stroke="#111111" stroke-width="1"' : '';
+
+      svgContent += `
+        <rect x="${x}" y="${y}" width="${barWidth}" height="${h}" fill="${s.color}" rx="3" ${rectStroke} />
+        <text x="${x + barWidth/2}" y="${y - 6}" text-anchor="middle" style="font-size:10px;fill:${mode === 'print' ? '#111111' : 'var(--text-primary)'};font-weight:600;font-family:var(--font-ui);">${s.type === 'diff' && s.val > 0 ? '+' : ''}${fmt(s.val)}</text>
+        <text x="${x + barWidth/2}" y="${H - 12}" text-anchor="middle" style="font-size:9px;fill:${mode === 'print' ? '#333333' : 'var(--text-muted)'};font-family:var(--font-display);">${s.label}</text>
+      `;
+
+      // Continuous dashed connection lane bridging Step i and Step i+1
+      if (i < steps.length - 1) {
+        const nextX = x + barWidth;
+        const strokeColor = mode === 'print' ? '#666666' : 'rgba(255,255,255,0.2)';
+        svgContent += `
+          <line x1="${nextX}" y1="${currentY}" x2="${nextX + gap}" y2="${currentY}" stroke="${strokeColor}" stroke-dasharray="3,3" stroke-width="1.2" />
+        `;
+      }
+    });
+
+    // Zero baseline
+    if (y0 >= PAD.t && y0 <= PAD.t + iH) {
+      svgContent += `<line x1="${PAD.l}" y1="${y0}" x2="${W - PAD.r}" y2="${y0}" stroke="${mode === 'print' ? '#111111' : 'rgba(255,255,255,0.15)'}" stroke-width="${mode === 'print' ? '1.8' : '1'}"/>`;
     }
 
-    svgContent += `
-      <rect x="${x}" y="${y}" width="${barWidth}" height="${h || 1}" fill="${s.color}" rx="2" />
-      <text x="${x + barWidth/2}" y="${y - 6}" text-anchor="middle" style="font-size:10px;fill:var(--text-primary);font-weight:600;">${s.type === 'diff' && s.val > 0 ? '+' : ''}${fmt(s.val)}</text>
-      <text x="${x + barWidth/2}" y="${H - 10}" text-anchor="middle" style="font-size:10px;fill:var(--text-muted);">${s.label}</text>
-    `;
-
-    // Linea conectora
-    if (i < steps.length - 1 && s.type !== 'subtotal' && steps[i+1].type !== 'subtotal' && steps[i+1].type !== 'final') {
-      const nextX = x + barWidth;
-      svgContent += `<line x1="${nextX}" y1="${currentY}" x2="${nextX + gap}" y2="${currentY}" stroke="rgba(255,255,255,0.2)" stroke-dasharray="2,2"/>`;
-    }
-  });
-
-  // Zero line
-  if (y0 >= PAD.t && y0 <= PAD.t + iH) {
-    svgContent += `<line x1="${PAD.l}" y1="${y0}" x2="${W - PAD.r}" y2="${y0}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>`;
-  }
-
-  container.innerHTML = `
-    <div class="card waterfall-card">
-      <div class="card-title">🌉 Cascada de Rentabilidad (Periodo Acumulado)</div>
-      <div class="waterfall-scroll-container">
-        <svg viewBox="0 0 ${W} ${H}" class="waterfall-svg" style="max-width:${W}px;">
+    if (mode === 'print') {
+      container.innerHTML = `
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:100%; max-height:100%; display:block; overflow:visible;">
           ${svgContent}
         </svg>
+      `;
+      return;
+    }
+
+    const printClass = mode === 'print' ? 'chart-print-mode' : '';
+    const uiWrapperStyle = mode === 'print' ? 'background:#fff;padding:16px;' : '';
+
+    container.innerHTML = `
+      <div class="card waterfall-card ${printClass}" style="${uiWrapperStyle}">
+        <div class="card-title">🌉 Cascada de Rentabilidad (${mode === 'print' ? 'Papel' : 'Periodo Acumulado'})</div>
+        <div class="waterfall-scroll-container">
+          <svg viewBox="0 0 ${W} ${H}" class="waterfall-svg" style="max-width:${W}px;overflow:visible;">
+            ${svgContent}
+          </svg>
+        </div>
+      </div>
+    `;
+
+  } catch (err) {
+    console.error("Fallo renderWaterfall, degradación contable:", err);
+    container.innerHTML = generateContableTableFallback(data);
+  }
+}
+
+/**
+ * alignZeroAxes(min1, max1, min2, max2)
+ * @description Garantiza el anclaje del cero en el mismo píxel vertical para gráficos de doble eje.
+ * Calcula la proporción negativa-a-positiva y expande los límites del eje de menor proporción.
+ */
+function alignZeroAxes(min1, max1, min2, max2) {
+  if (min1 >= 0 && min2 >= 0) {
+    return { min1: 0, max1, min2: 0, max2 };
+  }
+  const adjustedMin1 = Math.min(0, min1);
+  const adjustedMax1 = Math.max(1, max1);
+  const adjustedMin2 = Math.min(0, min2);
+  const adjustedMax2 = Math.max(1, max2);
+  
+  const r1 = Math.abs(adjustedMin1) / adjustedMax1;
+  const r2 = Math.abs(adjustedMin2) / adjustedMax2;
+  
+  let finalMin1 = adjustedMin1;
+  let finalMax1 = adjustedMax1;
+  let finalMin2 = adjustedMin2;
+  let finalMax2 = adjustedMax2;
+  
+  if (r1 > r2) {
+    // Agrandar la parte negativa del eje 2
+    finalMin2 = -r1 * adjustedMax2;
+  } else if (r2 > r1) {
+    // Agrandar la parte negativa del eje 1
+    finalMin1 = -r2 * adjustedMax1;
+  }
+  
+  return { min1: finalMin1, max1: finalMax1, min2: finalMin2, max2: finalMax2 };
+}
+
+/**
+ * renderDivergingEbitdaChart(containerId, data, mode)
+ * @description Genera un gráfico de columnas divergentes de EBITDA con hatching
+ * para baja fiabilidad e indicación de outliers extremos truncados en zig-zag.
+ */
+function renderDivergingEbitdaChart(containerId, data, mode = 'ui', customContainer = null) {
+  const container = customContainer || document.getElementById(containerId);
+  if (!container) return;
+
+  try {
+    const histMonths = Object.keys(data.pygMensual || {}).sort();
+    
+    if (!STATE.forecastResult && typeof buildForecast === 'function') {
+      STATE.forecastResult = buildForecast(data, { crecimiento: 3, churn: 1, deltaOpex: 1, eventos: [] });
+    }
+    const foreMonths = STATE.forecastResult ? STATE.forecastResult.forecastMonths : [];
+    
+    const chartData = [];
+    histMonths.forEach(m => {
+      const ebitda = data.pygMensual[m].ebitda || 0;
+      const conf = data.confidence?.byMonth?.[m] || { trustScore: 100 };
+      chartData.push({
+        month: m,
+        value: ebitda,
+        isForecast: false,
+        trustScore: conf.trustScore,
+        anomalies: conf.anomalies || []
+      });
+    });
+    
+    foreMonths.forEach((m, idx) => {
+      const projected = STATE.forecastResult.scenarios.base[idx]?.ebitda || 0;
+      chartData.push({
+        month: m,
+        value: projected,
+        isForecast: true,
+        trustScore: 100,
+        anomalies: []
+      });
+    });
+
+    if (chartData.length === 0) {
+      container.innerHTML = `<div class="empty-state">No hay datos suficientes para EBITDA Divergente</div>`;
+      return;
+    }
+
+    // Outlier Truncation System
+    const nonZeroVals = chartData.map(d => Math.abs(d.value)).filter(v => v > 0);
+    nonZeroVals.sort((a, b) => a - b);
+    const medianAbs = nonZeroVals.length > 0 ? nonZeroVals[Math.floor(nonZeroVals.length / 2)] : 10000;
+    const outlierThreshold = Math.max(5 * medianAbs, 150000); 
+
+    const nonOutliers = chartData.filter(d => Math.abs(d.value) <= outlierThreshold);
+    const maxNonOutlier = nonOutliers.length > 0 ? Math.max(...nonOutliers.map(d => d.value), 0) : 10000;
+    const minNonOutlier = nonOutliers.length > 0 ? Math.min(...nonOutliers.map(d => d.value), 0) : -10000;
+
+    const visualMax = Math.max(maxNonOutlier, 5000) * 1.15;
+    const visualMin = Math.min(minNonOutlier, -5000) * 1.15;
+    const range = visualMax - visualMin || 1;
+
+    const W = 800, H = 260;
+    const PAD = { t: 35, r: 25, b: 35, l: 65 };
+    const iW = W - PAD.l - PAD.r;
+    const iH = H - PAD.t - PAD.b;
+
+    const yScale = v => {
+      const clamped = Math.max(visualMin, Math.min(visualMax, v));
+      return PAD.t + iH - ((clamped - visualMin) / range) * iH;
+    };
+
+    const y0 = yScale(0);
+    const barWidth = (iW / chartData.length) * 0.65;
+    const gap = (iW / chartData.length) * 0.35;
+
+    let svgContent = '';
+    const fmt = v => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(v) + '€';
+
+    // SVG Pattern Definition for UI
+    svgContent += `
+      <defs>
+        <pattern id="hatching-danger" width="10" height="10" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="0" y2="10" stroke="hsla(355, 85%, 62%, 0.5)" stroke-width="2.5" />
+        </pattern>
+      </defs>
+    `;
+
+    // Horizontal grid lines (3 Y-Ticks)
+    const ticks = [visualMin, 0, visualMax];
+    ticks.forEach(tick => {
+      const y = yScale(tick);
+      const isZero = Math.abs(tick) < 0.1;
+      const strokeColor = mode === 'print' 
+        ? (isZero ? '#111111' : '#dddddd')
+        : (isZero ? 'var(--text-muted)' : 'rgba(255,255,255,0.06)');
+      const strokeWidth = isZero ? 1.5 : 1;
+      const dash = isZero ? (mode === 'print' ? 'none' : '3,3') : 'none';
+
+      svgContent += `<line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" />`;
+
+      const formattedTick = Math.abs(tick) >= 1000000 
+        ? `${(tick / 1000000).toFixed(1)}M€`
+        : Math.abs(tick) >= 1000 
+          ? `${(tick / 1000).toFixed(0)}k€` 
+          : `${tick.toFixed(0)}€`;
+      
+      svgContent += `
+        <text x="${PAD.l - 8}" y="${y + 3}" text-anchor="end" style="font-size:9px;fill:${mode === 'print' ? '#333' : 'var(--text-muted)'};font-family:var(--font-ui);font-variant-numeric:tabular-nums;">
+          ${formattedTick}
+        </text>
+      `;
+    });
+
+    // Divider Line between Historical and Forecast
+    const histCount = histMonths.length;
+    if (histCount > 0 && foreMonths.length > 0) {
+      const dividerX = PAD.l + histCount * (barWidth + gap);
+      const strokeColor = mode === 'print' ? '#666666' : 'var(--cyan)';
+      svgContent += `
+        <line x1="${dividerX}" y1="${PAD.t - 10}" x2="${dividerX}" y2="${H - PAD.b + 10}" stroke="${strokeColor}" stroke-width="1.5" stroke-dasharray="4,4" />
+        <text x="${dividerX}" y="${PAD.t - 15}" text-anchor="middle" style="font-size:8px;font-weight:700;fill:${strokeColor};font-family:var(--font-display);">HISTÓRICO | FORECAST</text>
+      `;
+    }
+
+    // Determine values for direct print labeling (max peak & min valley)
+    let peakIndex = -1, valleyIndex = -1;
+    let maxVal = -Infinity, minVal = Infinity;
+    chartData.forEach((d, i) => {
+      if (d.value > maxVal) { maxVal = d.value; peakIndex = i; }
+      if (d.value < minVal) { minVal = d.value; valleyIndex = i; }
+    });
+
+    chartData.forEach((d, i) => {
+      const x = PAD.l + i * (barWidth + gap) + gap/2;
+      const isOutlier = Math.abs(d.value) > outlierThreshold;
+      
+      const rawY = yScale(d.value);
+      let y, h;
+      
+      if (d.value >= 0) {
+        y = yScale(isOutlier ? visualMax : d.value);
+        h = y0 - y;
+      } else {
+        y = y0;
+        h = yScale(isOutlier ? visualMin : d.value) - y0;
+      }
+      
+      h = Math.max(2, h);
+
+      let fillAttr = '';
+      let strokeAttr = '';
+      let opacityAttr = '';
+      const isLowConf = d.trustScore < 75;
+      
+      if (d.isForecast) {
+        if (mode === 'print') {
+          fillAttr = 'fill="none"';
+          strokeAttr = `stroke="#7c6fb0" stroke-width="1.5" stroke-dasharray="3,3"`;
+        } else {
+          fillAttr = 'fill="rgba(124, 111, 176, 0.08)"';
+          strokeAttr = `stroke="var(--purple)" stroke-width="1.5" stroke-dasharray="3,3"`;
+        }
+      } else if (isLowConf) {
+        if (mode === 'print') {
+          const solidColor = d.value >= 0 ? '#bbf7d0' : '#fca5a5';
+          fillAttr = `fill="${solidColor}" fill-opacity="0.85"`;
+          strokeAttr = `stroke="${d.value >= 0 ? '#16a34a' : '#dc2626'}" stroke-width="1"`;
+        } else {
+          fillAttr = `fill="url(#hatching-danger)"`;
+          strokeAttr = `stroke="var(--red)" stroke-width="1.5"`;
+          opacityAttr = `opacity="0.65"`;
+        }
+      } else {
+        if (mode === 'print') {
+          const solidColor = d.value >= 0 ? '#86efac' : '#fca5a5';
+          fillAttr = `fill="${solidColor}"`;
+          strokeAttr = `stroke="${d.value >= 0 ? '#16a34a' : '#dc2626'}" stroke-width="1"`;
+        } else {
+          const color = d.value >= 0 ? 'var(--green)' : 'var(--red)';
+          fillAttr = `fill="${color}"`;
+          strokeAttr = `stroke="rgba(255,255,255,0.08)" stroke-width="1"`;
+        }
+      }
+
+      const interactiveAttrs = mode === 'print' ? '' : `
+        class="chart-bar-interactive" 
+        data-index="${i}"
+        style="cursor: pointer; transition: filter 0.15s ease;"
+        onmouseover="this.setAttribute('filter', 'brightness(1.2)')"
+        onmouseout="this.setAttribute('filter', 'none')"
+      `;
+
+      svgContent += `
+        <rect x="${x}" y="${y}" width="${barWidth}" height="${h}" ${fillAttr} ${strokeAttr} ${opacityAttr} rx="3" ${interactiveAttrs} />
+      `;
+
+      if (isOutlier) {
+        const zzY = d.value >= 0 ? y + 8 : y + h - 10;
+        const strokeColor = mode === 'print' ? '#111111' : '#ffffff';
+        const zPath = `
+          M ${x} ${zzY} 
+          L ${x + barWidth*0.25} ${zzY - 4} 
+          L ${x + barWidth*0.5} ${zzY + 4} 
+          L ${x + barWidth*0.75} ${zzY - 4} 
+          L ${x + barWidth} ${zzY}
+        `;
+        svgContent += `<path d="${zPath}" fill="none" stroke="${strokeColor}" stroke-width="1.8" />`;
+      }
+
+      const labelVisible = mode === 'print' 
+        ? (i === peakIndex || i === valleyIndex || isOutlier)
+        : true;
+
+      if (labelVisible) {
+        const textY = d.value >= 0 ? y - 6 : y + h + 11;
+        const textAnchor = "middle";
+        const fontWeight = (i === peakIndex || i === valleyIndex || isOutlier) ? '700' : '500';
+        const color = mode === 'print' ? '#111111' : 'var(--text-primary)';
+        
+        let labelText = fmt(d.value);
+        if (isOutlier) {
+          labelText = `⚠️ ${fmt(d.value)}`;
+        }
+
+        svgContent += `
+          <text x="${x + barWidth/2}" y="${textY}" text-anchor="${textAnchor}" style="font-size:9px;fill:${color};font-weight:${fontWeight};font-family:var(--font-ui);">
+            ${labelText}
+          </text>
+        `;
+      }
+
+      const labelFrequency = chartData.length > 15 ? 3 : 2;
+      const isBoundaryMonth = i === 0 || i === chartData.length - 1 || i === histCount - 1 || i === histCount;
+      if (i % labelFrequency === 0 || isBoundaryMonth) {
+        svgContent += `
+          <text x="${x + barWidth/2}" y="${H - 12}" text-anchor="middle" style="font-size:8px;fill:${mode === 'print' ? '#555' : 'var(--text-muted)'};font-family:var(--font-display);">
+            ${d.month}
+          </text>
+        `;
+      }
+    });
+
+    if (mode === 'print') {
+      container.innerHTML = `
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:100%; max-height:100%; display:block; overflow:visible;">
+          ${svgContent}
+        </svg>
+      `;
+      return;
+    }
+
+    const printClass = mode === 'print' ? 'chart-print-mode' : '';
+    const uiWrapperStyle = mode === 'print' ? 'background:#fff;padding:16px;' : '';
+
+    container.innerHTML = `
+      <div class="card chart-container-card ${printClass}" style="${uiWrapperStyle}">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>📊 EBITDA Mensual Divergente (${mode === 'print' ? 'Papel' : 'Dashboard'})</span>
+          ${mode === 'ui' ? `<span style="font-size:0.75rem;color:var(--text-muted);font-weight:normal;text-transform:none;">Pasa el cursor para ver fiabilidad y anomalías</span>` : ''}
+        </div>
+        <div style="overflow-x:auto;position:relative;">
+          <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block;overflow:visible;">
+            ${svgContent}
+          </svg>
+          <div id="ebitda-chart-tooltip" class="kpi-badge-trust-tooltip" style="position:fixed;display:none;z-index:1000;pointer-events:none;background:rgba(18,18,18,0.96);border-radius:10px;padding:12px;width:280px;box-shadow:0 10px 40px rgba(0,0,0,0.6);"></div>
+        </div>
+      </div>
+    `;
+
+    if (mode === 'ui') {
+      const tooltip = container.querySelector('#ebitda-chart-tooltip');
+      const rects = container.querySelectorAll('rect.chart-bar-interactive');
+      
+      rects.forEach(rect => {
+        rect.addEventListener('mousemove', (e) => {
+          const idx = parseInt(rect.dataset.index);
+          const item = chartData[idx];
+          if (!item) return;
+
+          const title = item.isForecast ? `Proyección Base` : `Mes Real: ${item.month}`;
+          const valStr = fmt(item.value);
+          const trustColor = item.trustScore >= 80 ? 'hsl(150, 70%, 75%)' : item.trustScore >= 60 ? 'hsl(38, 95%, 75%)' : 'hsl(355, 85%, 75%)';
+          
+          let anomaliesHtml = '';
+          if (item.anomalies.length > 0) {
+            anomaliesHtml = `
+              <div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.08);padding-top:6px;">
+                <div style="font-weight:600;color:var(--red);font-size:10px;text-transform:uppercase;margin-bottom:4px;">Anomalías:</div>
+                <div style="display:flex;flex-direction:column;gap:3px;">
+                  ${item.anomalies.map(a => `<div style="color:var(--text-secondary);font-size:10px;line-height:1.2;">⚠️ ${a.message}</div>`).join('')}
+                </div>
+              </div>
+            `;
+          }
+
+          tooltip.style.display = 'block';
+          const leftOffset = Math.min(window.innerWidth - 300, e.clientX + 15);
+          const topOffset = Math.min(window.innerHeight - 150, e.clientY + 15);
+          tooltip.style.left = `${leftOffset}px`;
+          tooltip.style.top = `${topOffset}px`;
+
+          tooltip.innerHTML = `
+            <div style="font-family:var(--font-display);font-weight:700;font-size:11px;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:3px;display:flex;justify-content:space-between;">
+              <span>${title}</span>
+              <span style="color:${trustColor};">Confianza: ${item.trustScore}%</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-secondary);">
+              EBITDA: <strong style="color:var(--text-primary);font-size:12px;">${valStr}</strong>
+            </div>
+            ${anomaliesHtml}
+          `;
+        });
+
+        rect.addEventListener('mouseleave', () => {
+          tooltip.style.display = 'none';
+        });
+      });
+    }
+
+  } catch (err) {
+    console.error("Fallo renderDivergingEbitdaChart, degradación elegante:", err);
+    container.innerHTML = generateContableTableFallback(data);
+  }
+}
+
+/**
+ * renderRunwayBurnChart(containerId, data, mode)
+ * @description Genera un gráfico de doble eje perfectamente alineado en cero.
+ * Representa Caja Final (área) y Burn Rate Neto (línea con marcadores) con alertas de runway < 3 meses.
+ */
+function renderRunwayBurnChart(containerId, data, mode = 'ui', customContainer = null) {
+  const container = customContainer || document.getElementById(containerId);
+  if (!container) return;
+
+  try {
+    const histData = (monthlyAnalysisCache || []).map(item => {
+      const m = item.month;
+      const cash = item.analysisResult.totales.cajaFinal || 0;
+      const burn = item.analysisResult.totales.burnRateNeto || 0;
+      const conf = data.confidence?.byMonth?.[m] || { trustScore: 100 };
+      return {
+        month: m,
+        cash,
+        burn,
+        isForecast: false,
+        trustScore: conf.trustScore
+      };
+    });
+
+    if (!STATE.forecastResult && typeof buildForecast === 'function') {
+      STATE.forecastResult = buildForecast(data, { crecimiento: 3, churn: 1, deltaOpex: 1, eventos: [] });
+    }
+
+    const foreData = (STATE.forecastResult?.scenarios?.base || []).map(r => ({
+      month: r.mes,
+      cash: r.caja || 0,
+      burn: -r.ebitda || 0, 
+      isForecast: true,
+      trustScore: 100
+    }));
+
+    const allData = [...histData, ...foreData];
+
+    if (allData.length === 0) {
+      container.innerHTML = `<div class="empty-state">No hay datos suficientes para Runway y Burn Rate</div>`;
+      return;
+    }
+
+    const cashVals = allData.map(d => d.cash);
+    const burnVals = allData.map(d => d.burn);
+
+    const minCash = Math.min(...cashVals, 0);
+    const maxCash = Math.max(...cashVals, 5000) * 1.15;
+    const minBurn = Math.min(...burnVals, -1000) * 1.15;
+    const maxBurn = Math.max(...burnVals, 1000) * 1.15;
+
+    // Zero axis alignment logic!
+    const aligned = alignZeroAxes(minCash, maxCash, minBurn, maxBurn);
+    const rCashMin = aligned.min1, rCashMax = aligned.max1;
+    const rBurnMin = aligned.min2, rBurnMax = aligned.max2;
+
+    const rangeCash = rCashMax - rCashMin || 1;
+    const rangeBurn = rBurnMax - rBurnMin || 1;
+
+    const W = 800, H = 300;
+    const PAD = { t: 45, r: 65, b: 40, l: 65 };
+    const iW = W - PAD.l - PAD.r;
+    const iH = H - PAD.t - PAD.b;
+
+    const xScale = idx => PAD.l + (idx / (allData.length - 1 || 1)) * iW;
+    const yScaleCash = val => PAD.t + iH - ((val - rCashMin) / rangeCash) * iH;
+    const yScaleBurn = val => PAD.t + iH - ((val - rBurnMin) / rangeBurn) * iH;
+
+    const zeroY = yScaleCash(0); 
+
+    let svgContent = '';
+    const fmt = v => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(v) + '€';
+
+    // Zero baseline
+    svgContent += `
+      <line x1="${PAD.l}" y1="${zeroY}" x2="${W - PAD.r}" y2="${zeroY}" stroke="${mode === 'print' ? '#111111' : 'var(--text-muted)'}" stroke-width="1.8" stroke-dasharray="${mode === 'print' ? 'none' : '3,3'}" />
+    `;
+
+    // Left Y-Axis ticks (Cash)
+    const cashTicks = [rCashMin, (rCashMin + rCashMax)/2, rCashMax];
+    cashTicks.forEach(tick => {
+      const y = yScaleCash(tick);
+      if (Math.abs(tick) < 0.1) return; 
+      svgContent += `
+        <line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}" stroke="${mode === 'print' ? '#eeeeee' : 'rgba(255,255,255,0.03)'}" stroke-width="1" />
+        <text x="${PAD.l - 8}" y="${y + 3}" text-anchor="end" style="font-size:9px;fill:var(--cyan);font-family:var(--font-ui);font-variant-numeric:tabular-nums;">
+          ${Math.abs(tick) >= 1000000 ? `${(tick / 1000000).toFixed(1)}M€` : Math.abs(tick) >= 1000 ? `${(tick / 1000).toFixed(0)}k€` : `${tick.toFixed(0)}€`}
+        </text>
+      `;
+    });
+
+    // Right Y-Axis ticks (Burn)
+    const burnTicks = [rBurnMin, (rBurnMin + rBurnMax)/2, rBurnMax];
+    burnTicks.forEach(tick => {
+      const y = yScaleBurn(tick);
+      if (Math.abs(tick) < 0.1) return; 
+      svgContent += `
+        <text x="${W - PAD.r + 8}" y="${y + 3}" text-anchor="start" style="font-size:9px;fill:${mode === 'print' ? '#ef4444' : 'var(--red)'};font-family:var(--font-ui);font-variant-numeric:tabular-nums;">
+          ${Math.abs(tick) >= 1000000 ? `${(tick / 1000000).toFixed(1)}M€` : Math.abs(tick) >= 1000 ? `${(tick / 1000).toFixed(0)}k€` : `${tick.toFixed(0)}€`}
+        </text>
+      `;
+    });
+
+    // Divider Line for Forecast / History
+    const histCount = histData.length;
+    if (histCount > 0 && foreData.length > 0) {
+      const divX = xScale(histCount - 0.5);
+      const strokeColor = mode === 'print' ? '#666666' : 'var(--cyan)';
+      svgContent += `
+        <line x1="${divX}" y1="${PAD.t - 15}" x2="${divX}" y2="${H - PAD.b + 10}" stroke="${strokeColor}" stroke-width="1.2" stroke-dasharray="4,4" />
+        <text x="${divX}" y="${PAD.t - 20}" text-anchor="middle" style="font-size:8px;font-weight:700;fill:${strokeColor};font-family:var(--font-display);">HISTÓRICO | FORECAST</text>
+      `;
+    }
+
+    // Cash Area - Historical
+    if (histData.length > 0) {
+      const startX = xScale(0);
+      const startY = zeroY;
+      let points = `M ${startX} ${startY}`;
+      histData.forEach((d, i) => {
+        points += ` L ${xScale(i).toFixed(1)} ${yScaleCash(d.cash).toFixed(1)}`;
+      });
+      points += ` L ${xScale(histData.length - 1).toFixed(1)} ${startY} Z`;
+      
+      const fill = mode === 'print' ? 'rgba(94,170,181,0.1)' : 'rgba(0, 212, 255, 0.08)';
+      svgContent += `<path d="${points}" fill="${fill}" stroke="none" />`;
+    }
+
+    // Cash Area - Forecast
+    if (foreData.length > 0) {
+      const startIdx = histData.length;
+      const startX = xScale(startIdx - 1);
+      const startY = zeroY;
+      let points = `M ${startX} ${startY}`;
+      const lastHistCash = histData.length > 0 ? histData[histData.length - 1].cash : 0;
+      points += ` L ${startX.toFixed(1)} ${yScaleCash(lastHistCash).toFixed(1)}`;
+
+      foreData.forEach((d, i) => {
+        points += ` L ${xScale(startIdx + i).toFixed(1)} ${yScaleCash(d.cash).toFixed(1)}`;
+      });
+      points += ` L ${xScale(allData.length - 1).toFixed(1)} ${startY} Z`;
+      
+      const fill = mode === 'print' ? 'rgba(124, 111, 176, 0.05)' : 'rgba(124, 111, 176, 0.04)';
+      svgContent += `<path d="${points}" fill="${fill}" stroke="none" />`;
+    }
+
+    // Cash line paths
+    let cashLinePathHist = '';
+    histData.forEach((d, i) => {
+      cashLinePathHist += `${i === 0 ? 'M' : 'L'} ${xScale(i).toFixed(1)} ${yScaleCash(d.cash).toFixed(1)}`;
+    });
+    if (histData.length > 0) {
+      svgContent += `<path d="${cashLinePathHist}" fill="none" stroke="var(--cyan)" stroke-width="2.5" />`;
+    }
+
+    let cashLinePathFore = '';
+    if (foreData.length > 0) {
+      const startIdx = histData.length;
+      const lastHistCash = histData.length > 0 ? histData[histData.length - 1].cash : 0;
+      cashLinePathFore += `M ${xScale(startIdx - 1).toFixed(1)} ${yScaleCash(lastHistCash).toFixed(1)}`;
+      
+      foreData.forEach((d, i) => {
+        cashLinePathFore += ` L ${xScale(startIdx + i).toFixed(1)} ${yScaleCash(d.cash).toFixed(1)}`;
+      });
+      svgContent += `<path d="${cashLinePathFore}" fill="none" stroke="var(--purple)" stroke-width="2.5" stroke-dasharray="4,4" />`;
+    }
+
+    // Burn Rate Net line paths
+    let burnLineHist = '';
+    histData.forEach((d, i) => {
+      burnLineHist += `${i === 0 ? 'M' : 'L'} ${xScale(i).toFixed(1)} ${yScaleBurn(d.burn).toFixed(1)}`;
+    });
+    if (histData.length > 0) {
+      svgContent += `<path d="${burnLineHist}" fill="none" stroke="var(--red)" stroke-width="2.5" />`;
+    }
+
+    let burnLineFore = '';
+    if (foreData.length > 0) {
+      const startIdx = histData.length;
+      const lastHistBurn = histData.length > 0 ? histData[histData.length - 1].burn : 0;
+      burnLineFore += `M ${xScale(startIdx - 1).toFixed(1)} ${yScaleBurn(lastHistBurn).toFixed(1)}`;
+      
+      foreData.forEach((d, i) => {
+        burnLineFore += ` L ${xScale(startIdx + i).toFixed(1)} ${yScaleBurn(d.burn).toFixed(1)}`;
+      });
+      svgContent += `<path d="${burnLineFore}" fill="none" stroke="#7c6fb0" stroke-width="2.5" stroke-dasharray="3,3" />`;
+    }
+
+    // Nodes and Warnings
+    let containsCriticalAlert = false;
+    let criticalFirstIndex = -1;
+
+    allData.forEach((d, i) => {
+      const cx = xScale(i);
+      const cyCash = yScaleCash(d.cash);
+      const cyBurn = yScaleBurn(d.burn);
+      
+      const runway = d.burn > 0 ? d.cash / d.burn : Infinity;
+      const isCritical = runway < 3 && d.burn > 0;
+      
+      if (isCritical) {
+        containsCriticalAlert = true;
+        if (criticalFirstIndex === -1) criticalFirstIndex = i;
+      }
+
+      if (isCritical) {
+        if (mode === 'print') {
+          svgContent += `
+            <circle cx="${cx}" cy="${cyCash}" r="6" fill="#dc2626" stroke="#ffffff" stroke-width="1.5" />
+            <line x1="${cx}" y1="${cyCash}" x2="${cx}" y2="${cyCash - 15}" stroke="#dc2626" stroke-width="1" stroke-dasharray="2,2" />
+            <text x="${cx}" y="${cyCash - 18}" text-anchor="middle" style="font-size:7px;fill:#dc2626;font-weight:700;">⚠️ RUNWAY < 3M</text>
+          `;
+        } else {
+          svgContent += `
+            <circle cx="${cx}" cy="${cyCash}" r="9" fill="none" stroke="var(--red)" stroke-width="2.5" opacity="0.85">
+              <animate attributeName="r" values="5;11;5" dur="1.5s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.85;0.2;0.85" dur="1.5s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="${cx}" cy="${cyCash}" r="4.5" fill="var(--red)" stroke="#ffffff" stroke-width="1.2" />
+          `;
+        }
+      } else {
+        const color = d.isForecast ? 'var(--purple)' : 'var(--cyan)';
+        const pColor = mode === 'print' ? '#111111' : color;
+        svgContent += `
+          <circle cx="${cx}" cy="${cyCash}" r="3.5" fill="${pColor}" stroke="#ffffff" stroke-width="1" />
+        `;
+      }
+
+      const bColor = d.isForecast ? '#7c6fb0' : 'var(--red)';
+      const pbColor = mode === 'print' ? '#dc2626' : bColor;
+      svgContent += `
+        <circle cx="${cx}" cy="${cyBurn}" r="3.5" fill="${pbColor}" stroke="#ffffff" stroke-width="1" />
+      `;
+
+      const labelVisible = i === 0 || i === allData.length - 1 || i === histCount - 1 || isCritical;
+      if (labelVisible) {
+        if (!isCritical) {
+          svgContent += `
+            <text x="${cx}" y="${cyCash - 8}" text-anchor="middle" style="font-size:8px;fill:${mode === 'print' ? '#111111' : 'var(--text-secondary)'};font-family:var(--font-ui);font-weight:600;">
+              ${fmt(d.cash)}
+            </text>
+          `;
+        }
+        svgContent += `
+          <text x="${cx}" y="${cyBurn + 12}" text-anchor="middle" style="font-size:8px;fill:${mode === 'print' ? '#dc2626' : 'var(--text-muted)'};font-family:var(--font-ui);">
+            ${fmt(d.burn)}
+          </text>
+        `;
+      }
+
+      const labelFrequency = allData.length > 15 ? 3 : 2;
+      const isBoundaryMonth = i === 0 || i === allData.length - 1 || i === histCount - 1 || i === histCount;
+      if (i % labelFrequency === 0 || isBoundaryMonth) {
+        svgContent += `
+          <text x="${cx}" y="${H - 10}" text-anchor="middle" style="font-size:8px;fill:${mode === 'print' ? '#555' : 'var(--text-muted)'};font-family:var(--font-display);">
+            ${d.month}
+          </text>
+        `;
+      }
+    });
+
+    if (mode === 'print') {
+      container.innerHTML = `
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:100%; max-height:100%; display:block; overflow:visible;">
+          ${svgContent}
+        </svg>
+      `;
+      return;
+    }
+
+    const isAlertActive = containsCriticalAlert;
+    const alertStyle = (isAlertActive && mode === 'ui') ? 'pulse-danger' : '';
+    const printClass = mode === 'print' ? 'chart-print-mode' : '';
+    const uiWrapperStyle = mode === 'print' ? 'background:#fff;padding:16px;' : '';
+
+    container.innerHTML = `
+      <div class="card chart-container-card ${printClass} ${alertStyle}" style="${uiWrapperStyle}">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>📊 Caja y Burn Rate Neto (${mode === 'print' ? 'Papel' : 'Dashboard'})</span>
+          <span style="font-size:0.75rem;font-weight:normal;text-transform:none;display:flex;gap:12px;">
+            <span style="color:var(--cyan);display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:var(--cyan);display:inline-block;border-radius:2px;"></span>Caja Acum. (Eje Izq.)</span>
+            <span style="color:var(--red);display:flex;align-items:center;gap:4px;"><span style="width:12px;height:2px;background:var(--red);display:inline-block;"></span>Burn Neto (Eje Der.)</span>
+          </span>
+        </div>
+        <div style="overflow-x:auto;">
+          <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block;overflow:visible;">
+            ${svgContent}
+          </svg>
+        </div>
+      </div>
+    `;
+
+  } catch (err) {
+    console.error("Fallo renderRunwayBurnChart, degradación elegante:", err);
+    container.innerHTML = generateContableTableFallback(data);
+  }
+}
+
+/**
+ * generateContableTableFallback(data)
+ * @description Tabla de degradación elegante cuando hay fallos del dibujado de SVG nativos.
+ */
+function generateContableTableFallback(data) {
+  const months = Object.keys(data.pygMensual || {}).sort();
+  const fmt = v => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(v) + '€';
+  
+  const rows = months.map(m => {
+    const ebitda = data.pygMensual[m].ebitda || 0;
+    const cash = data.pygMensual[m].totalIngresos || 0; 
+    const burn = data.totales.burnRateNeto || 0;
+    return `
+      <tr>
+        <td style="font-weight:600;">${m}</td>
+        <td class="td-num" style="color:${ebitda >= 0 ? 'var(--green)' : 'var(--red)'};">${fmt(ebitda)}</td>
+        <td class="td-num">${fmt(cash)}</td>
+        <td class="td-num" style="color:var(--red);">${fmt(burn)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="card" style="border-color:var(--danger);padding:16px;">
+      <div class="card-title" style="color:var(--danger);margin-bottom:8px;">⚠️ Fallback de Visualización Contable</div>
+      <p style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:12px;">Se ha activado el modo de degradación elegante por fallo lógico inesperado en el motor de renderizado vectorial SVG.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Mes</th>
+              <th style="text-align:right">EBITDA</th>
+              <th style="text-align:right">Ingresos (Hist.)</th>
+              <th style="text-align:right">Burn Rate Promedio</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
       </div>
     </div>
   `;
@@ -1141,48 +2472,45 @@ function renderAuditTrail() {
   const container = document.getElementById('audit-trail-content');
   if (!container) return;
 
-  let html = '';
-
-  // Bloque 1: Razones del Motor de Confianza
   const confidence = STATE.analysisResult?.confidence;
-  if (confidence && confidence.auditReasons && confidence.auditReasons.length > 0) {
-    html += `<div class="audit-section-header purple">⚙️ Confidence Engine Log</div>`;
-    html += confidence.auditReasons.map(reason => `
-      <div class="audit-reason-item">
-        ${reason}
-      </div>
-    `).join('');
+  const reasons = confidence?.auditReasons || [];
+  const events = STATE.auditTrail || [];
+
+  let confidenceHtml = '';
+  if (reasons.length > 0) {
+    confidenceHtml = `<div class="audit-reasons-list">` + reasons.map(reason => `
+      <div class="audit-reason-item">${reason}</div>
+    `).join('') + `</div>`;
+  } else {
+    confidenceHtml = `<div class="audit-empty-state">Sin observaciones técnicas en el motor de fiabilidad.</div>`;
   }
 
-  // Separador (si hay bloques anteriores y también hay log de sesión)
-  if (html !== '' && STATE.auditTrail.length > 0) {
-    html += `<div class="audit-divider"></div>`;
-  }
-
-  // Bloque 2: Registro de Sesión
-  if (STATE.auditTrail.length > 0) {
-    if (html !== '') {
-      html += `<div class="audit-section-header cyan">👤 User Session Log</div>`;
-    } else {
-      // Si no hay auditReasons, el encabezado se añade igual
-      html += `<div class="audit-section-header cyan">👤 User Session Log</div>`;
-    }
-    
-    html += STATE.auditTrail.map(ev => {
+  let sessionHtml = '';
+  if (events.length > 0) {
+    sessionHtml = `<div class="audit-events-list">` + events.map(ev => {
       const time = new Date(ev.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       return `<div class="audit-event-item">
         <span class="audit-event-time">${time}</span>
         <strong class="audit-event-action">${ev.action}</strong>
         <span class="audit-event-detail">${ev.detail}</span>
       </div>`;
-    }).join('');
+    }).join('') + `</div>`;
+  } else {
+    sessionHtml = `<div class="audit-empty-state">Sin eventos en la sesión de usuario.</div>`;
   }
 
-  if (html === '') {
-    html = '<span class="audit-empty-state">Sin eventos registrados.</span>';
-  }
-
-  container.innerHTML = html;
+  container.innerHTML = `
+    <div class="audit-container">
+      <div class="audit-section section-confidence">
+        <div class="audit-section-header purple">⚙️ Confidence Engine Log</div>
+        ${confidenceHtml}
+      </div>
+      <div class="audit-section section-session">
+        <div class="audit-section-header cyan">👤 User Session Log</div>
+        ${sessionHtml}
+      </div>
+    </div>
+  `;
 }
 
 // ---- Render: Hallazgos Accionables ----
@@ -1482,3 +2810,574 @@ renderRulesLibrary();
 // Inicializar módulos si existen
 if (typeof renderChecklist === 'function') renderChecklist();
 if (typeof renderKnowledge === 'function') renderKnowledge();
+
+/**
+ * renderRevenuesExpensesChart(containerId, data, mode)
+ * @description Genera un gráfico agrupado de ingresos y gastos mensuales.
+ * -------------------------------------------------------------------------
+ * ARCHITECTURE SPRINT 4:
+ * Consumidor puro del STATE. El modo 'print' dibuja el SVG estático directamente
+ * sobre el árbol DOM aislado generado fuera de pantalla por preparePrintDOM(),
+ * evitando duplicación de nodos interactivos y garantizando un PDF limpio.
+ * -------------------------------------------------------------------------
+ * El SVG de print es extremadamente austero en nodos: sin listeners de eventos,
+ * sin etiquetas ocultas, sin grupos innecesarios y sin patrones de hatching redundantes.
+ */
+function renderRevenuesExpensesChart(containerId, data, mode = 'ui', customContainer = null) {
+  const container = customContainer || document.getElementById(containerId);
+  if (!container) return;
+
+  try {
+    const histMonths = Object.keys(data.pygMensual || {}).sort();
+    
+    if (!STATE.forecastResult && typeof buildForecast === 'function') {
+      STATE.forecastResult = buildForecast(data, { crecimiento: 3, churn: 1, deltaOpex: 1, eventos: [] });
+    }
+    const foreMonths = STATE.forecastResult ? STATE.forecastResult.forecastMonths : [];
+    
+    const chartData = [];
+    histMonths.forEach(m => {
+      const rev = data.pygMensual[m].totalIngresos || 0;
+      const exp = (data.pygMensual[m].totalIngresos || 0) - (data.pygMensual[m].ebitda || 0);
+      const conf = data.confidence?.byMonth?.[m] || { trustScore: 100 };
+      chartData.push({
+        month: m,
+        revenue: rev,
+        expense: exp,
+        isForecast: false,
+        trustScore: conf.trustScore,
+        anomalies: conf.anomalies || []
+      });
+    });
+    
+    foreMonths.forEach((m, idx) => {
+      const projectedRev = STATE.forecastResult.scenarios.base[idx]?.ingresos || 0;
+      const projectedExp = STATE.forecastResult.scenarios.base[idx]?.opex || 0;
+      chartData.push({
+        month: m,
+        revenue: projectedRev,
+        expense: projectedExp,
+        isForecast: true,
+        trustScore: 100,
+        anomalies: []
+      });
+    });
+
+    if (chartData.length === 0) {
+      container.innerHTML = `<div class="empty-state">No hay datos suficientes para Ingresos vs. Gastos</div>`;
+      return;
+    }
+
+    const allVals = chartData.flatMap(d => [d.revenue, d.expense]);
+    const maxVal = Math.max(...allVals, 10000);
+    const minVal = Math.min(...allVals, 0); 
+    const visualMax = maxVal * 1.15;
+    const visualMin = minVal < 0 ? minVal * 1.15 : 0;
+    const range = visualMax - visualMin || 1;
+
+    const W = 800, H = 260;
+    const PAD = { t: 35, r: 25, b: 35, l: 65 };
+    const iW = W - PAD.l - PAD.r;
+    const iH = H - PAD.t - PAD.b;
+
+    const yScale = v => {
+      const clamped = Math.max(visualMin, Math.min(visualMax, v));
+      return PAD.t + iH - ((clamped - visualMin) / range) * iH;
+    };
+    
+    const y0 = yScale(0);
+    const N = chartData.length;
+    const W_mes = iW / N;
+
+    const barWidth = 0.30 * W_mes;
+
+    const fmt = v => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(v) + '€';
+
+    const buildSVG = (renderMode) => {
+      let svgContent = '';
+      
+      if (renderMode === 'ui') {
+        svgContent += `
+          <defs>
+            <pattern id="hatching-revenue-suspect" width="10" height="10" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="10" stroke="rgba(6, 182, 212, 0.4)" stroke-width="2.5" />
+            </pattern>
+            <pattern id="hatching-expense-suspect" width="10" height="10" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="10" stroke="rgba(239, 68, 68, 0.4)" stroke-width="2.5" />
+            </pattern>
+          </defs>
+        `;
+      }
+
+      const ticks = [visualMin, (visualMin + visualMax) / 2, visualMax];
+      ticks.forEach(tick => {
+        const y = yScale(tick);
+        const isZero = Math.abs(tick) < 0.1;
+        const strokeColor = renderMode === 'print'
+          ? (isZero ? '#111111' : '#dddddd')
+          : (isZero ? 'var(--text-muted)' : 'rgba(255,255,255,0.06)');
+        const strokeWidth = isZero ? 1.5 : 1;
+        const dash = isZero ? (renderMode === 'print' ? 'none' : '3,3') : 'none';
+
+        svgContent += `<line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" />`;
+
+        const formattedTick = Math.abs(tick) >= 1000000 
+          ? `${(tick / 1000000).toFixed(1)}M€`
+          : Math.abs(tick) >= 1000 
+            ? `${(tick / 1000).toFixed(0)}k€` 
+            : `${tick.toFixed(0)}€`;
+        
+        svgContent += `
+          <text x="${PAD.l - 8}" y="${y + 3}" text-anchor="end" style="font-size:9px;fill:${renderMode === 'print' ? '#333' : 'var(--text-muted)'};font-family:var(--font-ui);font-variant-numeric:tabular-nums;">
+            ${formattedTick}
+          </text>
+        `;
+      });
+
+      const histCount = histMonths.length;
+      if (histCount > 0 && foreMonths.length > 0) {
+        const dividerX = PAD.l + histCount * W_mes;
+        const strokeColor = renderMode === 'print' ? '#666666' : 'var(--cyan)';
+        svgContent += `
+          <line x1="${dividerX}" y1="${PAD.t - 10}" x2="${dividerX}" y2="${H - PAD.b + 10}" stroke="${strokeColor}" stroke-width="1.5" stroke-dasharray="4,4" />
+          <text x="${dividerX}" y="${PAD.t - 15}" text-anchor="middle" style="font-size:8px;font-weight:700;fill:${strokeColor};font-family:var(--font-display);">HISTÓRICO | FORECAST</text>
+        `;
+      }
+
+      let peakRevIdx = -1, peakExpIdx = -1;
+      let maxRevVal = -Infinity, maxExpVal = -Infinity;
+      chartData.forEach((d, idx) => {
+        if (d.revenue > maxRevVal) { maxRevVal = d.revenue; peakRevIdx = idx; }
+        if (d.expense > maxExpVal) { maxExpVal = d.expense; peakExpIdx = idx; }
+      });
+
+      chartData.forEach((d, idx) => {
+        const xBlock = PAD.l + idx * W_mes;
+        const xRev = xBlock + 0.175 * W_mes;
+        const xExp = xBlock + 0.525 * W_mes;
+        
+        const yRev = yScale(d.revenue);
+        const hRev = Math.max(2, y0 - yRev);
+
+        const yExp = yScale(d.expense);
+        const hExp = Math.max(2, y0 - yExp);
+
+        const isLowConf = d.trustScore < 75;
+
+        let revFill = '';
+        let revStroke = '';
+        let revOpacity = '';
+        
+        if (d.isForecast) {
+          if (renderMode === 'print') {
+            revFill = 'fill="none"';
+            revStroke = `stroke="#0ea5e9" stroke-width="1" stroke-dasharray="3,3"`;
+          } else {
+            revFill = 'fill="rgba(6, 182, 212, 0.08)"';
+            revStroke = `stroke="var(--cyan)" stroke-width="1.5" stroke-dasharray="3,3"`;
+          }
+        } else if (isLowConf) {
+          if (renderMode === 'print') {
+            revFill = 'fill="#9fe5e8"';
+            revStroke = `stroke="#0ea5e9" stroke-width="1"`;
+          } else {
+            revFill = 'fill="url(#hatching-revenue-suspect)"';
+            revStroke = `stroke="var(--cyan)" stroke-width="1.5"`;
+            revOpacity = 'opacity="0.7"';
+          }
+        } else {
+          if (renderMode === 'print') {
+            revFill = 'fill="#9fe5e8"';
+            revStroke = `stroke="#0ea5e9" stroke-width="1"`;
+          } else {
+            revFill = 'fill="var(--cyan)"';
+            revStroke = `stroke="rgba(255,255,255,0.08)" stroke-width="1"`;
+          }
+        }
+
+        let expFill = '';
+        let expStroke = '';
+        let expOpacity = '';
+        
+        if (d.isForecast) {
+          if (renderMode === 'print') {
+            expFill = 'fill="none"';
+            expStroke = `stroke="#ef4444" stroke-width="1" stroke-dasharray="3,3"`;
+          } else {
+            expFill = 'fill="rgba(239, 68, 68, 0.08)"';
+            expStroke = `stroke="var(--red)" stroke-width="1.5" stroke-dasharray="3,3"`;
+          }
+        } else if (isLowConf) {
+          if (renderMode === 'print') {
+            expFill = 'fill="#fca5a5"';
+            expStroke = `stroke="#ef4444" stroke-width="1"`;
+          } else {
+            expFill = 'fill="url(#hatching-expense-suspect)"';
+            expStroke = `stroke="var(--red)" stroke-width="1.5"`;
+            expOpacity = 'opacity="0.7"';
+          }
+        } else {
+          if (renderMode === 'print') {
+            expFill = 'fill="#fca5a5"';
+            expStroke = `stroke="#ef4444" stroke-width="1"`;
+          } else {
+            expFill = 'fill="var(--red)"';
+            expStroke = `stroke="rgba(255,255,255,0.08)" stroke-width="1"`;
+          }
+        }
+
+        const interactiveAttrsRev = renderMode === 'print' ? '' : `
+          class="chart-bar-interactive-rev" 
+          data-index="${idx}"
+          style="cursor: pointer; transition: filter 0.15s ease;"
+          onmouseover="this.setAttribute('filter', 'brightness(1.2)')"
+          onmouseout="this.setAttribute('filter', 'none')"
+        `;
+        const interactiveAttrsExp = renderMode === 'print' ? '' : `
+          class="chart-bar-interactive-exp" 
+          data-index="${idx}"
+          style="cursor: pointer; transition: filter 0.15s ease;"
+          onmouseover="this.setAttribute('filter', 'brightness(1.2)')"
+          onmouseout="this.setAttribute('filter', 'none')"
+        `;
+
+        svgContent += `
+          <rect x="${xRev}" y="${yRev}" width="${barWidth}" height="${hRev}" ${revFill} ${revStroke} ${revOpacity} rx="2" ${interactiveAttrsRev} />
+          <rect x="${xExp}" y="${yExp}" width="${barWidth}" height="${hExp}" ${expFill} ${expStroke} ${expOpacity} rx="2" ${interactiveAttrsExp} />
+        `;
+
+        if (renderMode === 'print') {
+          if (idx === peakRevIdx) {
+            svgContent += `
+              <text x="${xRev + barWidth/2}" y="${yRev - 6}" text-anchor="middle" style="font-size:8px;font-weight:700;fill:#111111;font-family:var(--font-ui);">
+                ${fmt(d.revenue)}
+              </text>
+            `;
+          }
+          if (idx === peakExpIdx) {
+            svgContent += `
+              <text x="${xExp + barWidth/2}" y="${yExp - 6}" text-anchor="middle" style="font-size:8px;font-weight:700;fill:#111111;font-family:var(--font-ui);">
+                ${fmt(d.expense)}
+              </text>
+            `;
+          }
+        }
+
+        // Etiquetado del eje X selectivo para evitar ruido en 24 meses y separar claramente histórico/forecast
+        const midHistIdx = Math.floor(histCount / 2);
+        const midForeIdx = histCount + Math.floor(foreMonths.length / 2);
+        const isSelectedLabel = idx === 0 || 
+                                idx === histCount - 1 || 
+                                idx === histCount || 
+                                idx === chartData.length - 1 ||
+                                (idx === midHistIdx && midHistIdx > 1 && midHistIdx < histCount - 2) ||
+                                (idx === midForeIdx && midForeIdx > histCount + 1 && midForeIdx < chartData.length - 2);
+
+        if (isSelectedLabel) {
+          svgContent += `
+            <text x="${xBlock + W_mes/2}" y="${H - 12}" text-anchor="middle" style="font-size:8px;fill:${renderMode === 'print' ? '#555' : 'var(--text-muted)'};font-family:var(--font-display);">
+              ${d.month}
+            </text>
+          `;
+        }
+      });
+
+      const svgStyle = renderMode === 'print'
+        ? 'width:100%; height:100%; max-height:100%; display:block; overflow:visible;'
+        : `width:100%;max-width:${W}px;display:block;overflow:visible;`;
+      return `
+        <svg viewBox="0 0 ${W} ${H}" style="${svgStyle}">
+          ${svgContent}
+        </svg>
+      `;
+    };
+
+    if (mode === 'print') {
+      const printSvgHtml = buildSVG('print');
+      container.innerHTML = printSvgHtml;
+      return;
+    }
+
+    if (mode === 'ui') {
+      const uiSvgHtml = buildSVG('ui');
+      container.innerHTML = `
+        <div class="card chart-container-card">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>📊 Evolución de Ingresos vs. Gastos</span>
+            <span style="font-size:0.75rem;color:var(--text-muted);font-weight:normal;text-transform:none;">Pasa el cursor para ver fiabilidad y anomalías</span>
+          </div>
+          <div style="overflow-x:auto;position:relative;">
+            ${uiSvgHtml}
+            <div id="reveues-expenses-chart-tooltip" class="kpi-badge-trust-tooltip" style="position:fixed;display:none;z-index:1000;pointer-events:none;background:rgba(18,18,18,0.96);border-radius:10px;padding:12px;width:280px;box-shadow:0 10px 40px rgba(0,0,0,0.6);"></div>
+          </div>
+          <div style="display:flex;gap:20px;margin-top:12px;justify-content:center;flex-wrap:wrap;">
+            <span style="font-size:0.78rem;color:var(--cyan);display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;background:var(--cyan);display:inline-block;border-radius:2px;"></span>Ingresos</span>
+            <span style="font-size:0.78rem;color:var(--red);display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;background:var(--red);display:inline-block;border-radius:2px;"></span>Gastos</span>
+            <span style="font-size:0.78rem;color:var(--text-muted);display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;background:rgba(255,255,255,0.08);border:1.5px dashed var(--border);display:inline-block;border-radius:2px;"></span>Proyección</span>
+          </div>
+        </div>
+      `;
+
+      const tooltip = container.querySelector('#reveues-expenses-chart-tooltip');
+      const bindTooltip = (selector, isRev) => {
+        const rects = container.querySelectorAll(selector);
+        rects.forEach(rect => {
+          rect.addEventListener('mousemove', (e) => {
+            const idx = parseInt(rect.dataset.index);
+            const item = chartData[idx];
+            if (!item) return;
+
+            const title = item.isForecast ? `Proyección Base` : `Mes Real: ${item.month}`;
+            const value = isRev ? item.revenue : item.expense;
+            const typeStr = isRev ? 'Ingreso total' : 'Gasto total';
+            const valStr = fmt(value);
+            const trustColor = item.trustScore >= 80 ? 'hsl(150, 70%, 75%)' : item.trustScore >= 60 ? 'hsl(38, 95%, 75%)' : 'hsl(355, 85%, 75%)';
+            
+            let anomaliesHtml = '';
+            if (item.anomalies.length > 0) {
+              anomaliesHtml = `
+                <div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.08);padding-top:6px;">
+                  <div style="font-weight:600;color:var(--red);font-size:10px;text-transform:uppercase;margin-bottom:4px;">Anomalías:</div>
+                  <div style="display:flex;flex-direction:column;gap:3px;">
+                    ${item.anomalies.map(a => `<div style="color:var(--text-secondary);font-size:10px;line-height:1.2;">⚠️ ${a.message}</div>`).join('')}
+                  </div>
+                </div>
+              `;
+            }
+
+            tooltip.style.display = 'block';
+            const leftOffset = Math.min(window.innerWidth - 300, e.clientX + 15);
+            const topOffset = Math.min(window.innerHeight - 150, e.clientY + 15);
+            tooltip.style.left = `${leftOffset}px`;
+            tooltip.style.top = `${topOffset}px`;
+
+            tooltip.innerHTML = `
+              <div style="font-family:var(--font-display);font-weight:700;font-size:11px;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:3px;display:flex;justify-content:space-between;">
+                <span>${title}</span>
+                <span style="color:${trustColor};">Confianza: ${item.trustScore}%</span>
+              </div>
+              <div style="font-size:11px;color:var(--text-secondary);">
+                ${typeStr}: <strong style="color:var(--text-primary);font-size:12px;">${valStr}</strong>
+              </div>
+              ${anomaliesHtml}
+            `;
+          });
+
+          rect.addEventListener('mouseleave', () => {
+            tooltip.style.display = 'none';
+          });
+        });
+      };
+
+      bindTooltip('rect.chart-bar-interactive-rev', true);
+      bindTooltip('rect.chart-bar-interactive-exp', false);
+    } else {
+      const printSvgHtml = buildSVG('print');
+      container.innerHTML = `
+        <div class="chart-container-card chart-print-mode" style="background:#fff;padding:16px;border:1px solid #ccc;border-radius:8px;">
+          <div style="font-family:var(--font-display);font-size:11px;font-weight:700;margin-bottom:12px;color:#111;text-transform:uppercase;letter-spacing:0.05em;">
+            📊 Evolución de Ingresos vs. Gastos (Copia Impresa)
+          </div>
+          <div style="overflow-x:auto;position:relative;">
+            ${printSvgHtml}
+          </div>
+          <div style="display:flex;gap:20px;margin-top:12px;justify-content:center;flex-wrap:wrap;font-family:var(--font-ui);font-size:9px;color:#333;">
+            <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;background:#9fe5e8;display:inline-block;border:1px solid #0ea5e9;"></span>Ingresos</span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;background:#fca5a5;display:inline-block;border:1px solid #ef4444;"></span>Gastos</span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border:1px dashed #777;display:inline-block;"></span>Proyección (Línea discontinua)</span>
+          </div>
+        </div>
+      `;
+    }
+
+  } catch (err) {
+    console.error("Fallo renderRevenuesExpensesChart, degradación elegante:", err);
+    container.innerHTML = generateContableTableFallback(data);
+  }
+}
+
+/**
+ * renderForecastFanChart(containerId, data, mode)
+ * @description Genera un abanico de evolución de caja con los tres escenarios.
+ * -------------------------------------------------------------------------
+ * ARCHITECTURE SPRINT 4:
+ * Consumidor puro del STATE. El modo 'print' dibuja el SVG estático directamente
+ * sobre el árbol DOM aislado generado fuera de pantalla por preparePrintDOM(),
+ * evitando duplicación de nodos interactivos y garantizando un PDF limpio.
+ * -------------------------------------------------------------------------
+ * Garantiza total ausencia de overshoot usando interpolación lineal estricta.
+ * El SVG de print es extremadamente austero en nodos: sin listeners de eventos,
+ * sin etiquetas ocultas, sin grupos innecesarios y sin patrones de hatching redundantes.
+ */
+function renderForecastFanChart(containerId, data, mode = 'ui', customContainer = null) {
+  const container = customContainer || document.getElementById(containerId);
+  if (!container) return;
+
+  try {
+    if (!STATE.forecastResult && typeof buildForecast === 'function') {
+      STATE.forecastResult = buildForecast(data, { crecimiento: 3, churn: 1, deltaOpex: 1, eventos: [] });
+    }
+    
+    if (!STATE.forecastResult) {
+      container.innerHTML = `<div class="empty-state">No hay proyecciones calculadas</div>`;
+      return;
+    }
+
+    const { scenarios, forecastMonths, cajaInicial } = STATE.forecastResult;
+    const histMonths = Object.keys(data.pygMensual || {}).sort();
+    const lastHistMonth = histMonths[histMonths.length - 1] || 'Mes 0';
+
+    const basePoints = [cajaInicial, ...scenarios.base.map(r => r.caja)];
+    const optPoints = [cajaInicial, ...scenarios.optimista.map(r => r.caja)];
+    const pesPoints = [cajaInicial, ...scenarios.pesimista.map(r => r.caja)];
+
+    const allCashVals = [...basePoints, ...optPoints, ...pesPoints];
+    const minCash = Math.min(...allCashVals, 0);
+    const maxCash = Math.max(...allCashVals, 10000);
+    const visualMax = maxCash * 1.15;
+    const visualMin = minCash < 0 ? minCash * 1.15 : 0;
+    const range = visualMax - visualMin || 1;
+
+    const W = 800, H = 260;
+    const PAD = { t: 35, r: 120, b: 35, l: 65 };
+    const iW = W - PAD.l - PAD.r;
+    const iH = H - PAD.t - PAD.b;
+
+    const xScale = idx => PAD.l + (idx / 12) * iW;
+    const yScale = v => {
+      const clamped = Math.max(visualMin, Math.min(visualMax, v));
+      return PAD.t + iH - ((clamped - visualMin) / range) * iH;
+    };
+
+    const fmt = v => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(v) + '€';
+
+    const buildSVG = (renderMode) => {
+      let svgContent = '';
+
+      const ticks = [visualMin, (visualMin + visualMax) / 2, visualMax];
+      ticks.forEach(tick => {
+        const y = yScale(tick);
+        const isZero = Math.abs(tick) < 0.1;
+        const strokeColor = renderMode === 'print'
+          ? (isZero ? '#111111' : '#dddddd')
+          : (isZero ? 'var(--text-muted)' : 'rgba(255,255,255,0.06)');
+        const strokeWidth = isZero ? 1.5 : 1;
+        const dash = isZero ? (renderMode === 'print' ? 'none' : '3,3') : 'none';
+
+        svgContent += `<line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" />`;
+
+        const formattedTick = Math.abs(tick) >= 1000000 
+          ? `${(tick / 1000000).toFixed(1)}M€`
+          : Math.abs(tick) >= 1000 
+            ? `${(tick / 1000).toFixed(0)}k€` 
+            : `${tick.toFixed(0)}€`;
+        
+        svgContent += `
+          <text x="${PAD.l - 8}" y="${y + 3}" text-anchor="end" style="font-size:9px;fill:${renderMode === 'print' ? '#333' : 'var(--text-muted)'};font-family:var(--font-ui);font-variant-numeric:tabular-nums;">
+            ${formattedTick}
+          </text>
+        `;
+      });
+
+      const yZero = yScale(0);
+      if (yZero >= PAD.t && yZero <= PAD.t + iH) {
+        const strokeC = renderMode === 'print' ? '#000000' : 'rgba(255, 255, 255, 0.15)';
+        svgContent += `<line x1="${PAD.l}" y1="${yZero}" x2="${W - PAD.r}" y2="${yZero}" stroke="${strokeC}" stroke-width="1.2" stroke-dasharray="3,3" />`;
+      }
+
+      const optPath = optPoints.map((v, i) => `${i === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ');
+      const basePath = basePoints.map((v, i) => `${i === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ');
+      const pesPath = pesPoints.map((v, i) => `${i === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ');
+
+      if (renderMode === 'ui') {
+        const optBasePoints = [
+          ...optPoints.map((v, i) => `${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`),
+          ...basePoints.map((v, i) => `${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).reverse()
+        ].join(' ');
+
+        const pesBasePoints = [
+          ...pesPoints.map((v, i) => `${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`),
+          ...basePoints.map((v, i) => `${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).reverse()
+        ].join(' ');
+
+        svgContent += `
+          <polygon points="${optBasePoints}" fill="rgba(16, 185, 129, 0.06)" stroke="none" />
+          <polygon points="${pesBasePoints}" fill="rgba(239, 68, 68, 0.05)" stroke="none" />
+          
+          <path d="${optPath}" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="${pesPath}" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="${basePath}" fill="none" stroke="var(--cyan)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        `;
+      } else {
+        svgContent += `
+          <path d="${optPath}" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="2,2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="${pesPath}" fill="none" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="2,2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="${basePath}" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        `;
+      }
+
+      const xEnd = xScale(12) + 8;
+      const yOpt = yScale(optPoints[12]);
+      const yBase = yScale(basePoints[12]);
+      const yPes = yScale(pesPoints[12]);
+
+      const labelStyle = `font-size:9px;font-weight:600;font-family:var(--font-ui);alignment-baseline:middle;`;
+      
+      const optColor = renderMode === 'print' ? '#16a34a' : 'var(--green)';
+      const baseColor = renderMode === 'print' ? '#374151' : 'var(--cyan)';
+      const pesColor = renderMode === 'print' ? '#dc2626' : 'var(--red)';
+
+      svgContent += `
+        <text x="${xEnd}" y="${yOpt}" fill="${optColor}" style="${labelStyle}">Optimista: ${fmt(optPoints[12])}</text>
+        <text x="${xEnd}" y="${yBase}" fill="${baseColor}" style="${labelStyle}">Base: ${fmt(basePoints[12])}</text>
+        <text x="${xEnd}" y="${yPes}" fill="${pesColor}" style="${labelStyle}">Pesimista: ${fmt(pesPoints[12])}</text>
+      `;
+
+      const xMonthLabels = [0, 3, 6, 9, 12];
+      xMonthLabels.forEach(idx => {
+        const x = xScale(idx);
+        const mLabel = idx === 0 ? lastHistMonth : forecastMonths[idx - 1] || `Mes ${idx}`;
+        svgContent += `
+          <text x="${x}" y="${H - 12}" text-anchor="middle" style="font-size:8px;fill:${renderMode === 'print' ? '#555' : 'var(--text-muted)'};font-family:var(--font-display);">
+            ${mLabel}
+          </text>
+        `;
+      });
+
+      const svgStyle = renderMode === 'print'
+        ? 'width:100%; height:100%; max-height:100%; display:block; overflow:visible;'
+        : `width:100%;max-width:${W}px;display:block;overflow:visible;`;
+      return `
+        <svg viewBox="0 0 ${W} ${H}" style="${svgStyle}">
+          ${svgContent}
+        </svg>
+      `;
+    };
+
+    if (mode === 'print') {
+      const printSvgHtml = buildSVG('print');
+      container.innerHTML = printSvgHtml;
+      return;
+    }
+
+    if (mode === 'ui') {
+      const uiSvgHtml = buildSVG('ui');
+      container.innerHTML = uiSvgHtml;
+    } else {
+      const printSvgHtml = buildSVG('print');
+      container.innerHTML = `
+        <div class="chart-container-card chart-print-mode" style="background:#fff;padding:16px;border:1px solid #ccc;border-radius:8px;">
+          <div style="font-family:var(--font-display);font-size:11px;font-weight:700;margin-bottom:12px;color:#111;text-transform:uppercase;letter-spacing:0.05em;">
+            📈 Evolución de Caja — Proyección de Abanico (Copia Impresa)
+          </div>
+          ${printSvgHtml}
+        </div>
+      `;
+    }
+
+  } catch (err) {
+    console.error("Fallo renderForecastFanChart, degradación elegante:", err);
+    container.innerHTML = `<div class="empty-state">Error al renderizar el gráfico en abanico</div>`;
+  }
+}
+

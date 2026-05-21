@@ -60,88 +60,71 @@ ${defensa || 'No se han generado alegaciones de defensa.'}
   if (btnPdf) {
     btnPdf.addEventListener('click', () => {
       if (!STATE.analysisResult) return;
-      const dashContent = document.getElementById('dashboard-content');
-
-      // ---- Crear portada temporal ----
-      const cover = document.createElement('div');
-      cover.id = 'pdf-cover-page';
-      cover.style.cssText = 'background:#0A0A0A;color:#e2e8f0;padding:60px 40px;font-family:Inter,sans-serif;page-break-after:always;';
       
-      const empresa = STATE.empresa.nombre || 'Empresa';
-      const profile = STATE.selectedProfile?.name || '';
       const data = STATE.analysisResult;
-      const confidence = data.confidence;
-      const ts = confidence?.trustScore ?? '--';
-      const fecha = new Date().toLocaleDateString('es-ES', { year:'numeric', month:'long', day:'numeric' });
-      const anomCount = data.anomalies?.length || 0;
-      const highCount = (data.anomalies || []).filter(a => a.severity === 'high' || a.severity === 'critical').length;
-
-      // Sello condicional
-      let sealHtml = '';
-      if (confidence?.confidenceLevel !== 'reliable') {
-        const color = confidence?.confidenceLevel === 'blocked' ? '#ef4444' : '#f59e0b';
-        sealHtml = `
-          <div style="margin-top:20px;border:3px solid ${color};color:${color};display:inline-block;padding:8px 20px;border-radius:8px;font-weight:900;text-transform:uppercase;transform:rotate(-3deg);font-family:Outfit,sans-serif;">
-            Análisis ${confidence?.confidenceLabel || 'Condicionado'}
-          </div>
-        `;
-      }
-
-      cover.innerHTML = `
-        <div style="text-align:center;margin-bottom:40px;padding-top:60px;">
-          <div style="font-family:Outfit,sans-serif;font-size:2.4rem;font-weight:800;color:#5eaab5;letter-spacing:-0.02em;">aptki</div>
-          <div style="font-size:1rem;color:#94a3b8;margin-top:4px;">workstation · informe financiero</div>
-        </div>
-        <div style="text-align:center;margin-bottom:30px;">
-          <div style="font-family:Outfit,sans-serif;font-size:1.8rem;font-weight:700;">${empresa}</div>
-          <div style="color:#94a3b8;margin-top:8px;">${profile} · ${fecha}</div>
-          ${sealHtml}
-        </div>
-        <div style="display:flex;justify-content:center;gap:40px;margin-bottom:40px;">
-          <div style="text-align:center;">
-            <div style="font-size:0.75rem;text-transform:uppercase;color:#94a3b8;letter-spacing:0.05em;">Trust Score</div>
-            <div style="font-family:Outfit,sans-serif;font-size:2.8rem;font-weight:800;color:${ts >= 80 ? '#10b981' : ts >= 50 ? '#f59e0b' : '#ef4444'};">${ts}</div>
-            <div style="font-size:0.8rem;color:#94a3b8;">/100</div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-size:0.75rem;text-transform:uppercase;color:#94a3b8;letter-spacing:0.05em;">Anomalías</div>
-            <div style="font-family:Outfit,sans-serif;font-size:2.8rem;font-weight:800;color:${highCount > 0 ? '#ef4444' : '#10b981'};">${anomCount}</div>
-            <div style="font-size:0.8rem;color:#94a3b8;">${highCount} graves</div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-size:0.75rem;text-transform:uppercase;color:#94a3b8;letter-spacing:0.05em;">Meses</div>
-            <div style="font-family:Outfit,sans-serif;font-size:2.8rem;font-weight:800;">${data.meta.months?.length || 0}</div>
-            <div style="font-size:0.8rem;color:#94a3b8;">analizados</div>
-          </div>
-        </div>
-        <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:20px;text-align:center;">
-          <div style="font-size:0.7rem;color:#475569;">Generado automáticamente por APTKI Workstation · ${fecha} · Documento confidencial</div>
-        </div>
-      `;
-
-      // Insertar portada antes del contenido
-      dashContent.parentNode.insertBefore(cover, dashContent);
-
-      const opt = {
-        margin:       10,
-        filename:     `${empresa}_aptki.pdf`.replace(/[^a-z0-9]/gi, '_').toLowerCase(),
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0A0A0A' },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-
-      // Wrapper temporal
-      const wrapper = document.createElement('div');
-      wrapper.appendChild(cover.cloneNode(true));
-      wrapper.appendChild(dashContent.cloneNode(true));
+      const forecast = STATE.forecastResult;
+      const scoring = STATE.scoringResult;
+      const empresa = STATE.empresa.nombre || data.meta.fileName || 'Empresa';
       
-      showToast('Generando PDF con portada...', 'info', 2000);
-      html2pdf().set(opt).from(wrapper).save().then(() => {
-        cover.remove();
-        showToast('PDF Exportado ✓', 'success');
-      }).catch(() => {
-        cover.remove();
-      });
+      showToast('Generando PDF Premium...', 'info', 2000);
+      
+      // 1. Crear el contenedor temporal fuera de pantalla (envoltorio wrapper para evitar colapso de alto en clon de html2pdf)
+      const wrapper = document.createElement('div');
+      wrapper.id = 'pdf-print-wrapper';
+      wrapper.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 0; height: 0; overflow: hidden;';
+      document.body.appendChild(wrapper);
+      
+      const printContainer = document.createElement('div');
+      printContainer.id = 'pdf-print-container';
+      printContainer.style.cssText = 'position: relative; width: 800px; background: #ffffff;';
+      wrapper.appendChild(printContainer);
+      
+      try {
+        // 2. Poblar el DOM temporal con las páginas estructuradas
+        preparePrintDOM(printContainer, data, forecast, scoring);
+        
+        // 3. Re-renderizar los 5 gráficos en modo 'print' apuntando a sus respectivos contenedores dentro del DOM temporal
+        const containerWaterfall = printContainer.querySelector('#pdf-waterfall-chart-container');
+        const containerEbitda = printContainer.querySelector('#pdf-ebitda-chart-container');
+        const containerRunway = printContainer.querySelector('#pdf-runway-burn-chart-container');
+        const containerRevenues = printContainer.querySelector('#pdf-revenues-expenses-chart-container');
+        const containerForecast = printContainer.querySelector('#pdf-forecast-fan-chart-container');
+        
+        if (containerWaterfall) renderWaterfall(data, 'print', containerWaterfall);
+        if (containerEbitda) renderDivergingEbitdaChart('pdf-ebitda-chart-container', data, 'print', containerEbitda);
+        if (containerRunway) renderRunwayBurnChart('pdf-runway-burn-chart-container', data, 'print', containerRunway);
+        if (containerRevenues) renderRevenuesExpensesChart('pdf-revenues-expenses-chart-container', data, 'print', containerRevenues);
+        if (containerForecast) renderForecastFanChart('pdf-forecast-fan-chart-container', data, 'print', containerForecast);
+        
+        // DIAGNÓSTICO
+        console.log("[DIAG PDF] printContainer rect:", printContainer.getBoundingClientRect());
+        console.log("[DIAG PDF] printContainer innerHTML length:", printContainer.innerHTML.length);
+        console.log("[DIAG PDF] pdf-page element count:", printContainer.querySelectorAll('.pdf-page').length);
+
+        // 4. Configurar opciones de html2pdf
+        const opt = {
+          margin:       0,
+          filename:     `${empresa}_aptki_report.pdf`.replace(/[^a-z0-9]/gi, '_').toLowerCase(),
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        
+        // 5. Exportar y limpiar/destruir el árbol temporal tras la exportación
+        html2pdf().set(opt).from(printContainer).save().then(() => {
+          wrapper.remove();
+          showToast('PDF Premium Exportado ✓', 'success');
+        }).catch((err) => {
+          console.error("Error al guardar PDF:", err);
+          wrapper.remove();
+          showToast('Error al exportar PDF', 'error');
+        });
+        
+      } catch (err) {
+        console.error("Error en la preparación del PDF:", err);
+        wrapper.remove();
+        showToast('Error al generar PDF', 'error');
+      }
     });
   }
 
@@ -376,4 +359,557 @@ function buildForecastSheet(forecast) {
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = [{ wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
   return ws;
+}
+
+/**
+ * parseMarkdownToHtml(md)
+ * @description Convierte el markdown del argumentario financiero y de defensa a un HTML estructurado y estilizado para A4.
+ */
+function parseMarkdownToHtml(md) {
+  if (!md) return '';
+  let html = md
+    .replace(/^>\s*⚠️\s*(.*)$/gm, '<blockquote style="border-left: 3px solid #d97706; padding: 6px 10px; color: #92400e; background: #fffbeb; border-radius: 4px; margin: 8px 0; font-size: 7.5px; line-height: 1.4;">⚠️ $1</blockquote>')
+    .replace(/^>\s*(.*)$/gm, '<blockquote style="border-left: 3px solid #d1d5db; padding: 6px 10px; color: #4b5563; background: #f9fafb; border-radius: 4px; margin: 8px 0; font-size: 7.5px; line-height: 1.4;">$1</blockquote>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/^### (.*)$/gm, '<h4 style="font-size: 8.5px; font-weight: 700; color: #111111; margin-top: 10px; margin-bottom: 4px; border-bottom: 1px solid #f3f4f6; padding-bottom: 2px; font-family: var(--font-display);">$1</h4>')
+    .replace(/^## (.*)$/gm, '<h3 style="font-size: 9.5px; font-weight: 700; color: #111111; margin-top: 14px; margin-bottom: 6px; font-family: var(--font-display);">$1</h3>')
+    .replace(/^\s*[-*]\s*(.*)$/gm, '<li style="margin-left: 10px; margin-bottom: 3px; font-size: 7.5px; line-height: 1.4; color: #374151;">$1</li>')
+    .split('\n\n').map(p => {
+      p = p.trim();
+      if (!p) return '';
+      if (p.startsWith('<blockquote') || p.startsWith('<h') || p.startsWith('<li')) return p;
+      return `<p style="font-size: 7.5px; line-height: 1.4; color: #374151; margin-bottom: 6px;">${p.replace(/\n/g, '<br/>')}</p>`;
+    }).join('\n');
+  return html;
+}
+
+/**
+ * buildPyGTableHTML(pygMensual)
+ * @description Genera la tabla HTML de Pérdidas y Ganancias (PyG) en formato A4 ultra limpio, monospace y contrastado.
+ */
+function buildPyGTableHTML(pygMensual) {
+  const months = Object.keys(pygMensual).sort();
+  const rows = [
+    { key: 'ventas', label: 'Ventas / Servicios', isSubtotal: false },
+    { key: 'otrosIngresos', label: 'Otros Ingresos', isSubtotal: false },
+    { key: 'totalIngresos', label: 'TOTAL INGRESOS', isSubtotal: true },
+    { key: 'cogs', label: 'Coste de Ventas (COGS)', isSubtotal: false },
+    { key: 'margenBruto', label: 'MARGEN BRUTO', isSubtotal: true },
+    { key: 'personal', label: 'Personal', isSubtotal: false },
+    { key: 'marketing', label: 'Marketing', isSubtotal: false },
+    { key: 'serviciosOperativos', label: 'Servicios Operativos', isSubtotal: false },
+    { key: 'tributos', label: 'Tributos', isSubtotal: false },
+    { key: 'ebitda', label: 'EBITDA', isSubtotal: true },
+    { key: 'amortizacion', label: 'Amortización', isSubtotal: false },
+    { key: 'ebit', label: 'EBIT', isSubtotal: true },
+    { key: 'gastosFinancieros', label: 'Gastos Financieros', isSubtotal: false },
+    { key: 'resultadoNeto', label: 'RESULTADO NETO', isSubtotal: true }
+  ];
+
+  const dataTable = {};
+  const totals = {};
+  rows.forEach(r => {
+    dataTable[r.key] = {};
+    totals[r.key] = 0;
+  });
+
+  months.forEach(m => {
+    const dataMes = pygMensual[m];
+    const v = dataMes.ventas || 0;
+    const oi = dataMes.otrosIngresos || 0;
+    const ti = v + oi;
+    const cg = dataMes.cogs || 0;
+    const mb = ti - cg;
+    const pe = dataMes.personal || 0;
+    const mk = dataMes.marketing || 0;
+    const so = dataMes.serviciosOperativos || 0;
+    const tr = dataMes.tributos || 0;
+    const eb = mb - (pe + mk + so + tr);
+    const am = dataMes.amortizacion || 0;
+    const ebt = eb - am;
+    const gf = dataMes.gastosFinancieros || 0;
+    const rn = ebt - gf;
+
+    dataTable['ventas'][m] = v;
+    dataTable['otrosIngresos'][m] = oi;
+    dataTable['totalIngresos'][m] = ti;
+    dataTable['cogs'][m] = cg;
+    dataTable['margenBruto'][m] = mb;
+    dataTable['personal'][m] = pe;
+    dataTable['marketing'][m] = mk;
+    dataTable['serviciosOperativos'][m] = so;
+    dataTable['tributos'][m] = tr;
+    dataTable['ebitda'][m] = eb;
+    dataTable['amortizacion'][m] = am;
+    dataTable['ebit'][m] = ebt;
+    dataTable['gastosFinancieros'][m] = gf;
+    dataTable['resultadoNeto'][m] = rn;
+
+    rows.forEach(r => {
+      totals[r.key] += dataTable[r.key][m];
+    });
+  });
+
+  let html = `<table class="pdf-table pdf-table-mono"><thead><tr><th style="font-family: var(--font-ui);">Partida</th>`;
+  months.forEach(m => {
+    const parts = m.split('-');
+    const labelMes = parts.length === 2 ? `${parts[1]}/${parts[0].slice(2)}` : m;
+    html += `<th style="text-align: right; font-family: var(--font-ui);">${labelMes}</th>`;
+  });
+  html += `<th style="text-align: right; font-family: var(--font-ui);">TOTAL</th></tr></thead><tbody>`;
+
+  rows.forEach(r => {
+    const trStyle = r.isSubtotal 
+      ? 'background-color: #f9fafb; font-weight: 700; border-top: 1px solid #d1d5db; border-bottom: 2px solid #9ca3af; color: #111111 !important;' 
+      : '';
+    html += `<tr style="${trStyle}">`;
+    html += `<td style="font-family: var(--font-ui); font-size: 7.5px; ${r.isSubtotal ? 'font-weight:700;' : ''}">${r.label}</td>`;
+    
+    months.forEach(m => {
+      const val = dataTable[r.key][m];
+      const valStr = val.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+      let style = '';
+      if ((r.key === 'ebitda' || r.key === 'resultadoNeto') && val < 0) style = 'color: #991b1b;';
+      html += `<td style="text-align: right; ${style}">${valStr} €</td>`;
+    });
+
+    const totVal = totals[r.key];
+    const totStr = totVal.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+    let style = '';
+    if ((r.key === 'ebitda' || r.key === 'resultadoNeto') && totVal < 0) style = 'color: #991b1b; font-weight:700;';
+    else if (r.isSubtotal) style = 'font-weight: 700;';
+    html += `<td style="text-align: right; ${style}">${totStr} €</td></tr>`;
+  });
+
+  html += '</tbody></table>';
+  return html;
+}
+
+/**
+ * preparePrintDOM(printContainer, data, forecast, scoring)
+ * @description Construye de forma programática y robusta las 7 páginas del dossier financiero Premium en A4.
+ */
+function preparePrintDOM(printContainer, data, forecast, scoring) {
+  const empresa = STATE.empresa.nombre || data.meta.fileName || 'Empresa';
+  const profileName = STATE.selectedProfile?.name || 'Perfil General';
+  const confidence = data.confidence || {};
+  const ts = confidence.trustScore ?? '--';
+  const tsLabel = confidence.confidenceLabel || '--';
+  const anomCount = data.anomalies?.length || 0;
+  const highCount = (data.anomalies || []).filter(a => a.severity === 'high' || a.severity === 'critical').length;
+  const fecha = new Date().toLocaleDateString('es-ES', { year:'numeric', month:'long', day:'numeric' });
+
+  const tsColor = ts >= 80 ? '#166534' : ts >= 50 ? '#d97706' : '#991b1b';
+  const anomColor = highCount > 0 ? '#991b1b' : '#166534';
+
+  const runwayIndex = forecast?.scenarios?.base?.findIndex(r => r.caja < 0);
+  const runwayText = runwayIndex !== undefined && runwayIndex !== -1 
+    ? `${runwayIndex + 1} meses` 
+    : (data.totales.burnRateNeto > 0 ? (data.totales.cajaFinal / data.totales.burnRateNeto).toFixed(1) + ' meses' : 'Rentable');
+  const runwayColor = (runwayIndex !== undefined && runwayIndex !== -1 && runwayIndex < 6) ? '#991b1b' : '#111111';
+
+  let sealHtml = '';
+  if (confidence.confidenceLevel !== 'reliable') {
+    const sealColor = confidence.confidenceLevel === 'blocked' ? '#dc2626' : '#d97706';
+    sealHtml = `
+      <div style="margin-top:16px; border:2.5px solid ${sealColor}; color:${sealColor}; display:inline-block; padding:5px 16px; border-radius:6px; font-weight:800; text-transform:uppercase; transform:rotate(-2deg); font-family: var(--font-display); font-size: 10px; background: #ffffff;">
+        Análisis ${confidence.confidenceLabel || 'Condicionado'}
+      </div>
+    `;
+  }
+
+  const narratives = typeof buildNarrative === 'function'
+    ? buildNarrative(data, forecast, scoring)
+    : { financiero: '', estrategico: '', defensa: '' };
+
+  const pygTableHtml = buildPyGTableHTML(data.pygMensual);
+
+  // Generar anexo anomalías
+  const anomalies = data.anomalies || [];
+  let anomaliesListHtml = '';
+  if (anomalies.length > 0) {
+    anomaliesListHtml = `
+      <table class="pdf-table">
+        <thead>
+          <tr>
+            <th style="width: 12%;">Mes</th>
+            <th style="width: 15%;">Severidad</th>
+            <th style="width: 15%;">Cuenta</th>
+            <th style="width: 58%;">Descripción</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+    anomalies.forEach(a => {
+      let badgeClass = 'pdf-badge-low';
+      let sevLabel = 'Baja';
+      if (a.severity === 'critical') { badgeClass = 'pdf-badge-critical'; sevLabel = 'Crítica'; }
+      else if (a.severity === 'high') { badgeClass = 'pdf-badge-high'; sevLabel = 'Alta'; }
+      else if (a.severity === 'medium') { badgeClass = 'pdf-badge-medium'; sevLabel = 'Media'; }
+      
+      anomaliesListHtml += `
+        <tr>
+          <td class="pdf-table-mono" style="font-weight: 600;">${a.month || 'Global'}</td>
+          <td><span class="pdf-badge ${badgeClass}">${sevLabel}</span></td>
+          <td class="pdf-table-mono"><code>${a.cuenta || '—'}</code></td>
+          <td style="font-size: 7.5px;"><strong>${a.message}</strong>${a.detail ? `<br/><span style="color:#6b7280; font-size:7px;">${a.detail}</span>` : ''}</td>
+        </tr>
+      `;
+    });
+    anomaliesListHtml += `
+        </tbody>
+      </table>
+    `;
+  } else {
+    anomaliesListHtml = '<p style="font-size: 8px; color: #166534; font-weight: 600; margin: 0;">✓ No se han detectado anomalías contables en este libro diario.</p>';
+  }
+
+  // Generar anexo periodificaciones
+  const approvedAccruals = STATE.approvedAccruals || [];
+  let accrualsTableHtml = '';
+  if (approvedAccruals.length > 0) {
+    accrualsTableHtml = `
+      <table class="pdf-table">
+        <thead>
+          <tr>
+            <th style="width: 15%;">Cuenta</th>
+            <th style="width: 45%;">Descripción del Devengo</th>
+            <th style="width: 12%;">Mes Origen</th>
+            <th style="width: 14%; text-align: right;">Importe Total</th>
+            <th style="width: 14%; text-align: right;">Cuota Mensual</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+    approvedAccruals.forEach(acc => {
+      accrualsTableHtml += `
+        <tr>
+          <td class="pdf-table-mono"><code>${acc.cuenta}</code></td>
+          <td style="font-size: 7.5px;">${acc.descripcion}</td>
+          <td class="pdf-table-mono">${acc.mesOrigen}</td>
+          <td class="pdf-table-mono" style="text-align: right; font-weight: 600;">${acc.importeTotal.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})} €</td>
+          <td class="pdf-table-mono" style="text-align: right; font-weight: 600;">${acc.importeMensual.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})} €</td>
+        </tr>
+      `;
+    });
+    accrualsTableHtml += `
+        </tbody>
+      </table>
+    `;
+  } else {
+    accrualsTableHtml = '<p style="font-size: 8px; color: #6b7280; margin: 0;">Ningún ajuste de periodificación o devengo ha sido seleccionado por el consultor.</p>';
+  }
+
+  // Generar anexo audit reasons
+  let auditReasonsHtml = '';
+  const reasons = confidence.auditReasons || [];
+  if (reasons.length > 0) {
+    auditReasonsHtml = '<ul style="margin: 0; padding-left: 12px; font-size: 7.5px; line-height: 1.4; color: #374151;">';
+    reasons.forEach(r => {
+      let color = '#4b5563';
+      let weight = 'normal';
+      if (r.startsWith('+')) { color = '#166534'; weight = '600'; }
+      else if (r.startsWith('-')) { color = '#991b1b'; weight = '600'; }
+      
+      auditReasonsHtml += `<li style="margin-bottom: 2px; color: ${color}; font-weight: ${weight};">${r}</li>`;
+    });
+    auditReasonsHtml += '</ul>';
+  } else {
+    auditReasonsHtml = '<p style="font-size: 8px; color: #6b7280; margin: 0;">No se registran justificaciones de ajuste en este análisis.</p>';
+  }
+
+  // Ensamblar páginas
+  printContainer.innerHTML = `
+    <!-- Página 1: Portada -->
+    <div class="pdf-page">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">INFORME CONFIDENCIAL</span>
+      </div>
+      
+      <div class="pdf-page-content" style="justify-content: center; gap: 40px; margin-top: 60px; margin-bottom: 60px;">
+        <div style="text-align: center;">
+          <h1 style="font-size: 24px; font-weight: 800; color: #111111; font-family: var(--font-display); line-height: 1.2; margin-bottom: 8px;">
+            ${empresa}
+          </h1>
+          <p style="font-size: 11px; color: #4b5563; margin-top: 4px;">
+            Diagnóstico de Integridad Financiera y Defensa CFO
+          </p>
+          <div style="display: flex; justify-content: center; gap: 10px; margin-top: 15px; font-size: 9px; color: #6b7280;">
+            <span><strong>Perfil:</strong> ${profileName}</span>
+            <span>•</span>
+            <span><strong>Fecha:</strong> ${fecha}</span>
+          </div>
+          ${sealHtml}
+        </div>
+
+        <div style="display: flex; justify-content: center; gap: 24px; margin-top: 20px;">
+          <div class="pdf-card" style="text-align: center; width: 140px; padding: 20px !important;">
+            <div style="font-size: 8px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.05em; font-weight: bold; margin-bottom: 6px;">Trust Score</div>
+            <div style="font-size: 32px; font-weight: 800; color: ${tsColor}; line-height: 1;">${ts}</div>
+            <div style="font-size: 9px; font-weight: 600; color: ${tsColor}; margin-top: 6px;">${tsLabel}</div>
+          </div>
+
+          <div class="pdf-card" style="text-align: center; width: 140px; padding: 20px !important;">
+            <div style="font-size: 8px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.05em; font-weight: bold; margin-bottom: 6px;">Anomalías</div>
+            <div style="font-size: 32px; font-weight: 800; color: ${anomColor}; line-height: 1;">${anomCount}</div>
+            <div style="font-size: 9px; color: #4b5563; margin-top: 6px;">${highCount} graves / críticas</div>
+          </div>
+
+          <div class="pdf-card" style="text-align: center; width: 140px; padding: 20px !important;">
+            <div style="font-size: 8px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.05em; font-weight: bold; margin-bottom: 6px;">Periodo</div>
+            <div style="font-size: 32px; font-weight: 800; color: #111111; line-height: 1;">${data.meta.months?.length || 0}</div>
+            <div style="font-size: 9px; color: #4b5563; margin-top: 6px;">Meses Analizados</div>
+          </div>
+        </div>
+
+        <div class="pdf-card" style="background: #f9fafb !important; padding: 16px !important; max-width: 500px; margin: 0 auto; border-left: 4px solid #374151 !important;">
+          <h3 style="font-size: 9px; font-weight: 700; color: #111111; margin-top: 0; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">Objetivo del Diagnóstico</h3>
+          <p style="font-size: 8.5px; line-height: 1.4; color: #4b5563; margin: 0;">
+            Este informe sintetiza la auditoría del libro diario contable, evalúa la calidad del dato y la elegibilidad para instrumentos de financiación pública (ENISA, CDTI), y provee el argumentario técnico de supervivencia y defensa CFO adaptado para comités de evaluación de riesgos.
+          </p>
+        </div>
+      </div>
+
+      <div class="pdf-footer">
+        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Página 1 de 7</span>
+      </div>
+    </div>
+
+    <!-- Página 2: Resumen Ejecutivo y Diagnóstico Financiero -->
+    <div class="pdf-page">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
+      </div>
+
+      <div class="pdf-page-content" style="margin-top: 15px;">
+        <h2 style="font-size: 12px; font-weight: 800; color: #111111; margin-bottom: 10px; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; border-left: 3px solid #111111; padding-left: 8px;">
+          1. Resumen Ejecutivo y Diagnóstico Financiero
+        </h2>
+        
+        <div class="pdf-avoid-break">
+          ${parseMarkdownToHtml(narratives.financiero)}
+        </div>
+
+        <div class="pdf-grid-3 pdf-avoid-break" style="margin-top: 15px;">
+          <div class="pdf-card" style="padding: 12px !important;">
+            <div style="font-size: 7.5px; text-transform: uppercase; color: #6b7280; font-weight: 600;">Ingresos Totales</div>
+            <div style="font-size: 16px; font-weight: 800; color: #111111; margin-top: 4px;">${data.totales.ingresos.toLocaleString('es-ES')} €</div>
+            <div style="font-size: 7.5px; color: #6b7280; margin-top: 4px;">Periodo Acumulado</div>
+          </div>
+          
+          <div class="pdf-card" style="padding: 12px !important;">
+            <div style="font-size: 7.5px; text-transform: uppercase; color: #6b7280; font-weight: 600;">EBITDA</div>
+            <div style="font-size: 16px; font-weight: 800; color: ${data.totales.ebitda >= 0 ? '#111111' : '#dc2626'}; margin-top: 4px;">
+              ${data.totales.ebitda.toLocaleString('es-ES')} €
+            </div>
+            <div style="font-size: 7.5px; color: #6b7280; margin-top: 4px;">
+              ${confidence.ebitdaSuspect ? '⚠️ EBITDA Sospechoso' : 'EBITDA Operativo'}
+            </div>
+          </div>
+
+          <div class="pdf-card" style="padding: 12px !important;">
+            <div style="font-size: 7.5px; text-transform: uppercase; color: #6b7280; font-weight: 600;">Caja Final</div>
+            <div style="font-size: 16px; font-weight: 800; color: #111111; margin-top: 4px;">${data.totales.cajaFinal.toLocaleString('es-ES')} €</div>
+            <div style="font-size: 7.5px; color: #6b7280; margin-top: 4px;">Último mes analizado</div>
+          </div>
+
+          <div class="pdf-card" style="padding: 12px !important;">
+            <div style="font-size: 7.5px; text-transform: uppercase; color: #6b7280; font-weight: 600;">Burn Rate Neto</div>
+            <div style="font-size: 16px; font-weight: 800; color: #111111; margin-top: 4px;">${data.totales.burnRateNeto.toLocaleString('es-ES')} €/mes</div>
+            <div style="font-size: 7.5px; color: #6b7280; margin-top: 4px;">Consumo de caja promedio</div>
+          </div>
+
+          <div class="pdf-card" style="padding: 12px !important;">
+            <div style="font-size: 7.5px; text-transform: uppercase; color: #6b7280; font-weight: 600;">Runway Estimado</div>
+            <div style="font-size: 16px; font-weight: 800; color: ${runwayColor}; margin-top: 4px;">${runwayText}</div>
+            <div style="font-size: 7.5px; color: #6b7280; margin-top: 4px;">Proyección de supervivencia</div>
+          </div>
+
+          <div class="pdf-card" style="padding: 12px !important;">
+            <div style="font-size: 7.5px; text-transform: uppercase; color: #6b7280; font-weight: 600;">Trust Level</div>
+            <div style="font-size: 16px; font-weight: 800; color: ${tsColor}; margin-top: 4px;">${ts}/100</div>
+            <div style="font-size: 7.5px; color: ${tsColor}; margin-top: 4px; font-weight: 600;">${tsLabel}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pdf-footer">
+        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Página 2 de 7</span>
+      </div>
+    </div>
+
+    <!-- Página 3: Análisis Gráfico I: Evolución de Caja y Rentabilidad -->
+    <div class="pdf-page">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
+      </div>
+
+      <div class="pdf-page-content" style="margin-top: 15px;">
+        <h2 style="font-size: 12px; font-weight: 800; color: #111111; margin-bottom: 15px; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; border-left: 3px solid #111111; padding-left: 8px;">
+          2. Estructura de Márgenes y EBITDA Histórico-Proyectado
+        </h2>
+
+        <div class="pdf-card pdf-avoid-break" style="margin-bottom: 15px;">
+          <h3 style="font-size: 9.5px; font-weight: 700; color: #111111; margin-top: 0; margin-bottom: 4px;">Descomposición de Caja y Consumo Contable (Waterfall)</h3>
+          <p style="font-size: 8px; color: #6b7280; margin-top: 0; margin-bottom: 8px;">
+            Desglose acumulado desde los ingresos brutos hasta el EBITDA final del ejercicio contable, aislando el impacto de COGS, costes de personal y otros costes operativos fijos.
+          </p>
+          <div id="pdf-waterfall-chart-container" style="width: 100%; height: 200px;"></div>
+        </div>
+
+        <div class="pdf-card pdf-avoid-break">
+          <h3 style="font-size: 9.5px; font-weight: 700; color: #111111; margin-top: 0; margin-bottom: 4px;">Evolución Mensual del EBITDA (Histórico y Forecast)</h3>
+          <p style="font-size: 8px; color: #6b7280; margin-top: 0; margin-bottom: 8px;">
+            Seguimiento del EBITDA mes a mes. Las áreas atenuadas o sin color sólido en gráficos de barra representan periodos reales con sospechas de baja fiabilidad de datos. La zona a la derecha representa la proyección base.
+          </p>
+          <div id="pdf-ebitda-chart-container" style="width: 100%; height: 200px;"></div>
+        </div>
+      </div>
+
+      <div class="pdf-footer">
+        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Página 3 de 7</span>
+      </div>
+    </div>
+
+    <!-- Página 4: Proyección de Runway y Dinámica de Cashflow -->
+    <div class="pdf-page">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
+      </div>
+
+      <div class="pdf-page-content" style="margin-top: 15px;">
+        <h2 style="font-size: 12px; font-weight: 800; color: #111111; margin-bottom: 15px; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; border-left: 3px solid #111111; padding-left: 8px;">
+          3. Proyección de Runway y Dinámica de Cashflow
+        </h2>
+
+        <div class="pdf-card pdf-avoid-break" style="margin-bottom: 15px;">
+          <h3 style="font-size: 9.5px; font-weight: 700; color: #111111; margin-top: 0; margin-bottom: 4px;">Caja Final y Tasa de Consumo Mensual (Runway & Burn Rate)</h3>
+          <p style="font-size: 8px; color: #6b7280; margin-top: 0; margin-bottom: 8px;">
+            Comparativa directa entre el remanente de caja disponible y la velocidad mensual de destrucción neta de tesorería, alineados al eje neutro común.
+          </p>
+          <div id="pdf-runway-burn-chart-container" style="width: 100%; height: 200px;"></div>
+        </div>
+
+        <div class="pdf-card pdf-avoid-break">
+          <h3 style="font-size: 9.5px; font-weight: 700; color: #111111; margin-top: 0; margin-bottom: 4px;">Estructura Temporal de Ingresos vs. Costes Totales</h3>
+          <p style="font-size: 8px; color: #6b7280; margin-top: 0; margin-bottom: 8px;">
+            Contraste entre los ingresos brutos generados y los costes incurridos en cada mes del periodo analizado, indicando la senda de break-even mensual.
+          </p>
+          <div id="pdf-revenues-expenses-chart-container" style="width: 100%; height: 200px;"></div>
+        </div>
+      </div>
+
+      <div class="pdf-footer">
+        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Página 4 de 7</span>
+      </div>
+    </div>
+
+    <!-- Página 5: Cuenta de Resultados (PyG) Analítica -->
+    <div class="pdf-page">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
+      </div>
+
+      <div class="pdf-page-content" style="margin-top: 15px;">
+        <h2 style="font-size: 12px; font-weight: 800; color: #111111; margin-bottom: 10px; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; border-left: 3px solid #111111; padding-left: 8px;">
+          4. Cuenta de Pérdidas y Ganancias (PyG) Analítica
+        </h2>
+        <p style="font-size: 8.5px; color: #4b5563; margin-top: 0; margin-bottom: 10px; line-height: 1.4;">
+          La siguiente tabla presenta la cuenta de resultados mensualizada estructurada bajo criterio de gestión analítica directa. Todos los valores se muestran expresados en euros contables (€).
+        </p>
+
+        <div class="pdf-avoid-break" style="width: 100%; overflow-x: auto;">
+          ${pygTableHtml}
+        </div>
+      </div>
+
+      <div class="pdf-footer">
+        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Página 5 de 7</span>
+      </div>
+    </div>
+
+    <!-- Página 6: Proyecciones Financieras (Forecast 12 Meses) -->
+    <div class="pdf-page">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
+      </div>
+
+      <div class="pdf-page-content" style="margin-top: 15px;">
+        <h2 style="font-size: 12px; font-weight: 800; color: #111111; margin-bottom: 15px; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; border-left: 3px solid #111111; padding-left: 8px;">
+          5. Proyección de Escenarios de Caja (Forecast 12 Meses)
+        </h2>
+
+        <div class="pdf-card pdf-avoid-break" style="margin-bottom: 15px;">
+          <h3 style="font-size: 9.5px; font-weight: 700; color: #111111; margin-top: 0; margin-bottom: 4px;">Simulación y Estrés de Tesorería (Base, Optimista, Pesimista)</h3>
+          <p style="font-size: 8px; color: #6b7280; margin-top: 0; margin-bottom: 8px;">
+            Proyección de caja acumulada a 12 meses vista a partir del último mes real. La banda atenuada representa el abanico probabilístico de sensibilidad financiera.
+          </p>
+          <div id="pdf-forecast-fan-chart-container" style="width: 100%; height: 200px;"></div>
+        </div>
+
+        <div class="pdf-avoid-break">
+          ${parseMarkdownToHtml(narratives.estrategico)}
+        </div>
+      </div>
+
+      <div class="pdf-footer">
+        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Página 6 de 7</span>
+      </div>
+    </div>
+
+    <!-- Página 7: Anexo de Trazabilidad, Confianza y Ajustes Contables -->
+    <div class="pdf-page">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
+      </div>
+
+      <div class="pdf-page-content" style="margin-top: 15px; gap: 15px;">
+        <h2 style="font-size: 12px; font-weight: 800; color: #111111; margin-bottom: 5px; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; border-left: 3px solid #111111; padding-left: 8px;">
+          6. Anexo de Trazabilidad, Confianza y Ajustes Contables
+        </h2>
+        <p style="font-size: 8.5px; color: #4b5563; margin-top: 0; margin-bottom: 5px; line-height: 1.4;">
+          Detalle técnico de la auditoría algorítmica realizada sobre el libro diario contable, justificando los deméritos aplicados sobre el <em>Trust Score</em>, las anomalías detectadas, periodificaciones y alegaciones de defensa.
+        </p>
+
+        <div class="pdf-card pdf-avoid-break" style="padding: 10px !important;">
+          <h3 style="font-size: 9px; font-weight: 700; color: #111111; margin-top: 0; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f3f4f6; padding-bottom: 3px;">Auditoría de Confianza Contable (Trust Score)</h3>
+          ${auditReasonsHtml}
+        </div>
+
+        <div class="pdf-card pdf-avoid-break" style="padding: 10px !important;">
+          <h3 style="font-size: 9px; font-weight: 700; color: #111111; margin-top: 0; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f3f4f6; padding-bottom: 3px;">Ajustes de Periodificación y Devengo Aprobados</h3>
+          ${accrualsTableHtml}
+        </div>
+
+        <div class="pdf-card pdf-avoid-break" style="padding: 10px !important;">
+          <h3 style="font-size: 9px; font-weight: 700; color: #111111; margin-top: 0; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f3f4f6; padding-bottom: 3px;">Registro de Anomalías Contables Detectadas</h3>
+          ${anomaliesListHtml}
+        </div>
+
+        <div class="pdf-card pdf-avoid-break" style="padding: 10px !important; border-left: 3px solid #5eaab5 !important;">
+          <h3 style="font-size: 9px; font-weight: 700; color: #111111; margin-top: 0; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; color: #3f7b84; border-bottom: 1px solid #e0f2f1; padding-bottom: 3px;">Alegaciones de Defensa CFO</h3>
+          ${parseMarkdownToHtml(narratives.defensa)}
+        </div>
+      </div>
+
+      <div class="pdf-footer">
+        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Página 7 de 7</span>
+      </div>
+    </div>
+  `;
 }

@@ -2,6 +2,62 @@
 
 Historial de versiones y evolución del CFO Toolkit de APTKI.
 
+## [1.3.5] — 2026-05-21 (Refinamiento Visual PDF: Gráficos Correctamente Encuadrados)
+
+### Corregido
+*   **Eliminación de recorte de gráficos en el PDF exportado (`js/app.js`)**:
+    *   Los 5 gráficos del Dashboard (Waterfall de rentabilidad, EBITDA mensual divergente, Runway vs Burn Rate, Ingresos vs Gastos, y Forecast Fan Chart) aparecían recortados en el PDF, mostrando solo la esquina superior izquierda. La causa raíz era que las funciones de renderizado envolvían el SVG dentro de contenedores `.card` / `.chart-container-card` con padding, márgenes, títulos y scroll wrappers incluso en modo `print`. Dado que `preparePrintDOM` asigna `height: 200px` a cada bloque de gráfico, el SVG real disponía de solo ~140px tras los márgenes internos de la tarjeta, provocando desbordamiento y recorte por `html2canvas`.
+    *   **Solución:** Se añadió un `return` anticipado en las 5 funciones de renderizado cuando `mode === 'print'`, inyectando el SVG directamente en el contenedor con estilo elástico (`width:100%; height:100%; max-height:100%; display:block; overflow:visible;`) y sin envoltorios intermedios. El `viewBox` nativo y `preserveAspectRatio="xMidYMid meet"` del SVG garantizan el escalado correcto sin deformaciones.
+
+### Funciones modificadas
+*   `renderWaterfall()` — Líneas ~1717-1724: Early return con SVG elástico directo.
+*   `renderDivergingEbitdaChart()` — Líneas ~2020-2027: Early return con SVG elástico directo.
+*   `renderRunwayBurnChart()` — Líneas ~2365-2385: Early return con SVG elástico directo.
+*   `renderRevenuesExpensesChart()` — Helper `buildSVG` escalado + early return.
+*   `renderForecastFanChart()` — Helper `buildSVG` escalado + early return.
+
+### Verificado
+*   **Comprobación 6: Integridad visual de gráficos en PDF (`scratch/verify_flows.js`)**:
+    *   Auditoría programática del DOM de `#pdf-print-container` inmediatamente después del click en exportar, verificando para cada uno de los 5 gráficos:
+        1.  Presencia de `<svg>` con `viewBox` y estilo elástico `width:100%`.
+        2.  Ausencia de contenedores `.card` o `.chart-container-card` redundantes.
+        3.  Presencia de nodos `<text>` vectoriales con leyendas esperadas (COGS, EBITDA, Caja, Burn, Optimista, Base, Pesimista, etc.).
+    *   Resultado: **OK** — Todos los gráficos se renderizan completos, encuadrados y legibles en A4.
+
+---
+
+## [1.3.4-bis] — 2026-05-21 (Corrección de Regresión: Exportación PDF del Dashboard)
+
+### Corregido
+*   **Fix de Colapso Vertical a Alto 0 en PDF (`js/exporter.js`)**:
+    *   Solución a la regresión donde la exportación a PDF producía un documento completamente en blanco debido a que el contenedor temporal de impresión (`pdf-print-container`) poseía estilos de posicionamiento absoluto (`position: absolute; left: 0; top: 0; z-index: -1000;`), lo que hacía que `html2pdf.js` colapsara la altura de renderizado a `0` píxeles dentro de su iframe interno de clonado.
+    *   Inyección de un contenedor intermedio (envoltorio wrapper) invisible fuera de la pantalla (`left: -9999px; height: 0; width: 0; overflow: hidden;`) para albergar al `printContainer` con posicionamiento relativo (`position: relative; width: 800px;`), permitiendo un flujo de layout normal en el motor de renderizado de `html2pdf` sin causar intrusión visual ni parpadeo para el usuario final.
+
+### Verificado
+*   **Prueba de Cobertura 5 en Playwright (`scratch/verify_flows.js`)**:
+    *   Añadida la **Comprobación 5: Exportación PDF Dashboard** que intercepta de forma programática el PDF exportado de Flowmetrics, lo parsea mediante `pdf-parse`, y valida de forma estricta que posee exactamente **7 páginas** repletas de contenido visual e integridad contable sin hojas vacías (OK).
+
+---
+
+## [1.3.4] — 2026-05-21 (Optimización de Reactividad y Rendimiento del Dashboard)
+
+### Añadido
+*   **Poda Selectiva de Reactividad Profunda (`js/store.js`)**:
+    *   Implementación de la propiedad de filtrado de proxy profundo `_shouldDeepProxy` y métodos `__isProxy`/`__rawTarget` para evitar la creación de proxies reactivos recursivos pesados sobre nodos del estado que son estáticos y de gran volumen (como `parsedLedger`, `analysisResult`, `scoringResult`, `forecastResult`, `cartera` y `auditTrail`).
+    *   Exclusividad de la reactividad para claves dinámicas pequeñas y mutables (`approvedAccruals`, `selectedProfile`, etc.), logrando una transición al Paso 5 ("Generar Dashboard Final") extremadamente fluida (<500ms en libros reales pesados) sin degradar la UX ni bloquear el hilo principal del navegador.
+
+### Modificado
+*   **Soporte de Parámetros de Control en el Motor Analítico (`js/analyzer.js` y `js/app.js`)**:
+    *   Integración del parámetro opcional `options` en `analyzeLedger(..., options)` para poder omitir opcionalmente las anomalías en llamadas internas recursivas y caches temporales (`options.skipAnomalies === true`).
+    *   Refactorización del flujo en el botón `btn-goto-dashboard` a un pipeline asíncrono ordenado segmentado con `requestAnimationFrame` que asegura la actualización visual del loader antes de arrancar los cálculos complejos y la rehidratación.
+
+### Verificado
+*   **Cobertura del Test Automatizado de Regresión Contable y Funcional (`scratch/verify_flows.js`)**:
+    *   Prueba 1: Generación fluida de dashboard con Flowmetrics (EBITDA: `-313.443,29 €`, Trust Score: `43`, 5 anomalías).
+    *   Prueba 2: Navegación bidireccional limpia y rehidratación inmediata en modo Cartera para startups individuales.
+    *   Prueba 3: Reactividad granular intacta en ajustes dinámicos de periodificación (`STATE.approvedAccruals`) recalculando instantáneamente el EBITDA del mes correspondiente (+50.000 €).
+    *   Prueba 4: Integridad absoluta de exportaciones de sesión mediante `session.js`.
+
 ---
 
 ## [1.3.3] — 2026-05-20 (Fase 2: Gestión de Riesgos de la Cuenta 551 y Microfase de Convergencia)

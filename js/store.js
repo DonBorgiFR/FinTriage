@@ -34,23 +34,57 @@ class ReactiveStore {
   }
 
   /**
+   * Helper para determinar si una ruta de propiedad debe envolverse recursivamente en Proxy.
+   * Evitamos envolver campos masivos de solo lectura como parsedLedger, analysisResult, etc.
+   */
+  _shouldDeepProxy(path, prop) {
+    const fullPath = path ? `${path}.${prop}` : prop;
+    const rootKey = fullPath.split('.')[0];
+    const NO_DEEP_PROXY_KEYS = new Set([
+      'parsedLedger',
+      'analysisResult',
+      'scoringResult',
+      'forecastResult',
+      'cartera',
+      'auditTrail'
+    ]);
+    return !NO_DEEP_PROXY_KEYS.has(rootKey);
+  }
+
+  /**
    * Crea un ES6 Proxy recursivo para detectar mutaciones en objetos anidados.
    * La trampa 'set' actúa como barrera inmutable.
    */
   _createDeepProxy(target, callback, path = '') {
+    if (target !== null && typeof target === 'object' && target.__isProxy) {
+      return target;
+    }
+
     const handler = {
+      get: (obj, prop) => {
+        if (prop === '__isProxy') return true;
+        if (prop === '__rawTarget') return obj;
+        return obj[prop];
+      },
       set: (obj, prop, value) => {
         const oldValue = obj[prop];
         const currentPath = path ? `${path}.${prop}` : prop;
         
-        // Si el nuevo valor inyectado es un objeto o array, lo envolvemos recursivamente
-        // Esto asegura que mutaciones profundas (ej: STATE.empresa.nombre = 'X') sigan siendo reactivas
-        // Solo envolvemos objetos planos y arrays para no romper instancias nativas (ej. File, Date)
-        const isMappable = value !== null && typeof value === 'object' && 
-                           (Array.isArray(value) || value.constructor === Object);
-        const newValue = isMappable 
-          ? this._createDeepProxy(value, callback, currentPath) 
+        // Si el valor ya es un proxy, usamos su rawTarget para evitar doble envoltura
+        const rawValue = (value !== null && typeof value === 'object' && value.__isProxy)
+          ? value.__rawTarget
           : value;
+
+        // Si el nuevo valor inyectado es un objeto o array, lo envolvemos recursivamente
+        // Pero solo si no es un path excluido de proxy profundo (parsedLedger, etc.)
+        const isMappable = rawValue !== null && typeof rawValue === 'object' && 
+                           !rawValue.__isProxy &&
+                           this._shouldDeepProxy(path, prop) &&
+                           (Array.isArray(rawValue) || rawValue.constructor === Object);
+
+        const newValue = isMappable 
+          ? this._createDeepProxy(rawValue, callback, currentPath) 
+          : rawValue;
 
         // Solo publicamos el evento si el valor realmente ha cambiado (evita bucles)
         if (oldValue !== newValue) {
@@ -75,6 +109,8 @@ class ReactiveStore {
     for (let key in target) {
       const value = target[key];
       const isMappable = value !== null && typeof value === 'object' && 
+                         !value?.__isProxy &&
+                         this._shouldDeepProxy(path, key) &&
                          (Array.isArray(value) || value.constructor === Object);
       if (isMappable) {
         target[key] = this._createDeepProxy(value, callback, path ? `${path}.${key}` : key);
@@ -147,6 +183,7 @@ const initialDataContract = {
   cartera: [],
   carteraActiveStartup: null,
   carteraMode: false,
+  _onboardingComplete: false,
   
   // Nodo de UI reactivo para Data Grids
   ui: {

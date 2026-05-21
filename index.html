@@ -410,6 +410,15 @@
         <!-- Cascada visual (Waterfall) superior -->
         <div id="waterfall-container" style="margin-bottom:24px;"></div>
 
+        <!-- EBITDA Divergente Chart (Sprint 2) -->
+        <div id="ebitda-chart-container" style="margin-bottom:24px;"></div>
+
+        <!-- Runway & Burn Rate Chart (Sprint 2) -->
+        <div id="runway-burn-container" style="margin-bottom:24px;"></div>
+
+        <!-- Ingresos y Gastos Agrupados (Sprint 3) -->
+        <div id="revenues-expenses-container" style="margin-bottom:24px;"></div>
+
         <!-- Panel de Hallazgos Accionables -->
         <div class="card" id="actionable-findings-section" style="margin-bottom:24px; display:none; border-color: var(--danger);">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
@@ -604,6 +613,16 @@
 
 <!-- TOAST CONTAINER -->
 <div class="toast-container" id="toast-container"></div>
+
+<!-- PREMIUM GLASSMORPHIC LOADER -->
+<div id="dashboard-loader-overlay" class="loader-overlay" style="display: none;">
+  <div class="loader-content">
+    <div class="loader-spinner"></div>
+    <div role="status" aria-live="polite" id="loader-message" class="loader-message">
+      Sintetizando balance contable...
+    </div>
+  </div>
+</div>
 
 <!-- LIBS CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>

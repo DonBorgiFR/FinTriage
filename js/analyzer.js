@@ -356,8 +356,9 @@ const ANOMALY_RULES = [
     severity: 'high',
     label: 'Facturas registradas en domingo',
     check: (entries, pygMensual, categoryMap) => {
-      const sundayEntries = entries.filter(e => {
-        if (!e.fecha) return false;
+      const sundayByMonth = {};
+      entries.forEach(e => {
+        if (!e.fecha) return;
         let d;
         if (e.fecha.includes('/')) {
           const parts = e.fecha.split('/');
@@ -365,15 +366,20 @@ const ANOMALY_RULES = [
         } else {
           d = new Date(e.fecha);
         }
-        return d && !isNaN(d.getTime()) && d.getDay() === 0;
+        if (d && !isNaN(d.getTime()) && d.getDay() === 0) {
+          if (!sundayByMonth[e.monthKey]) sundayByMonth[e.monthKey] = [];
+          sundayByMonth[e.monthKey].push(e);
+        }
       });
-      if (sundayEntries.length > 0) {
-        return [{
-          severity: 'high', message: `${sundayEntries.length} asiento(s) registrados en domingo`,
-          detail: sundayEntries.slice(0,3).map(e => `${e.fecha} · ${e.cuenta} · ${e.debe||e.haber}€`).join(' | ')
-        }];
+      const anomalies = [];
+      for (const [m, mEntries] of Object.entries(sundayByMonth)) {
+        anomalies.push({
+          severity: 'high', message: `${mEntries.length} asiento(s) registrados en domingo en ${m}`,
+          detail: mEntries.slice(0,3).map(e => `${e.fecha} · ${e.cuenta} · ${e.debe||e.haber}€`).join(' | '),
+          month: m
+        });
       }
-      return [];
+      return anomalies;
     }
   },
   {
@@ -387,8 +393,9 @@ const ANOMALY_RULES = [
         if ((e.debe === 0 && e.haber === 0) || !e.fecha) return;
         const key = `${e.fecha}_${e.cuenta}_${e.debe}_${e.haber}_${e.descripcion}`;
         if (seen.has(key)) {
-          anomalies.push({ severity: 'high', message: `Posible duplicado detectado`,
-            detail: `Cuenta ${e.cuenta} · ${e.debe||e.haber}€ · Fecha ${e.fecha} · ${e.descripcion}` });
+          anomalies.push({ severity: 'high', message: `Posible duplicado detectado en ${e.monthKey}`,
+            detail: `Cuenta ${e.cuenta} · ${e.debe||e.haber}€ · Fecha ${e.fecha} · ${e.descripcion}`,
+            month: e.monthKey });
         } else { seen.set(key, true); }
       });
       return anomalies;
@@ -402,10 +409,12 @@ const ANOMALY_RULES = [
       const months = Object.keys(pygMensual).sort();
       const negMonths = months.filter(m => pygMensual[m]?.margenBruto < 0);
       if (negMonths.length >= 2) {
-        return [{
-          severity: 'high', message: `Margen bruto negativo en ${negMonths.length} meses`,
-          detail: negMonths.join(', ')
-        }];
+        return negMonths.map(m => ({
+          severity: 'high',
+          message: `Margen bruto negativo en ${m}`,
+          detail: `El margen bruto del mes es de ${pygMensual[m].margenBruto.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}€`,
+          month: m
+        }));
       }
       return [];
     }
@@ -465,26 +474,31 @@ const ANOMALY_RULES = [
     severity: 'critical',
     label: 'Asientos desbalanceados',
     check: (entries, pygMensual, categoryMap) => {
-      const asientosMap = {};
+      const seatsMap = {};
       entries.forEach(e => {
         if (!e.asiento) return;
-        if (!asientosMap[e.asiento]) asientosMap[e.asiento] = { debe: 0, haber: 0 };
-        asientosMap[e.asiento].debe += e.debe || 0;
-        asientosMap[e.asiento].haber += e.haber || 0;
+        if (!seatsMap[e.asiento]) seatsMap[e.asiento] = { debe: 0, haber: 0, month: e.monthKey };
+        seatsMap[e.asiento].debe += e.debe || 0;
+        seatsMap[e.asiento].haber += e.haber || 0;
       });
-      let descuadresPorAsiento = 0;
-      for (const [asiento, sumas] of Object.entries(asientosMap)) {
+      const descuadresByMonth = {};
+      for (const [asiento, sumas] of Object.entries(seatsMap)) {
         if (Math.abs(sumas.debe - sumas.haber) > 0.02) {
-          descuadresPorAsiento++;
+          const m = sumas.month || 'global';
+          if (!descuadresByMonth[m]) descuadresByMonth[m] = [];
+          descuadresByMonth[m].push(asiento);
         }
       }
-      if (descuadresPorAsiento > 0) {
-        return [{
-          severity: 'critical', message: `Asientos desbalanceados detectados (Crítico)`,
-          detail: `${descuadresPorAsiento} asientos individuales no cuadran (Debe != Haber). Invalida el libro mayor.`
-        }];
+      const anomalies = [];
+      for (const [m, asientos] of Object.entries(descuadresByMonth)) {
+        anomalies.push({
+          severity: 'critical',
+          message: `Asientos desbalanceados en ${m}`,
+          detail: `${asientos.length} asiento(s) no cuadran (Debe != Haber) en este mes (Asientos: ${asientos.slice(0, 5).join(', ')}). Invalida el libro mayor.`,
+          month: m
+        });
       }
-      return [];
+      return anomalies;
     }
   },
   {
@@ -585,7 +599,8 @@ const ANOMALY_RULES = [
           anomalies.push({
             severity: 'critical',
             message: `Descuadre contable en el mes ${m}`,
-            detail: `La suma mensual de apuntes al Debe (${debeTotal.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€) no coincide con el Haber (${haberTotal.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€). Diferencia de ${diff.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€.`
+            detail: `La suma mensual de apuntes al Debe (${debeTotal.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€) no coincide con el Haber (${haberTotal.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€). Diferencia de ${diff.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€.`,
+            month: m
           });
         }
       }
@@ -599,25 +614,22 @@ const ANOMALY_RULES = [
     check: (entries, pygMensual, categoryMap) => {
       const inmovilizado = saldoCuenta(entries, ['20','21','22','23']);
       const inmovilizadoNeto = inmovilizado.debe - inmovilizado.haber;
-      
       if (inmovilizadoNeto <= 0) return [];
-      
       const months = Object.keys(pygMensual).sort();
       const monthsSinAmort = [];
-      
       for (const m of months) {
         const amort = pygMensual[m]?.amortizacion || 0;
         if (amort === 0) {
           monthsSinAmort.push(m);
         }
       }
-      
       if (monthsSinAmort.length > 0) {
-        return [{
+        return monthsSinAmort.map(m => ({
           severity: 'medium',
-          message: 'Meses sin registro de amortización',
-          detail: `Existen activos de inmovilizado valorados en ${inmovilizadoNeto.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€, pero no se ha registrado gasto de amortización en ${monthsSinAmort.length} mes(es) (${monthsSinAmort.join(', ')}). Distorsiona el EBITDA y el resultado mensual.`
-        }];
+          message: `Ausencia de amortización en ${m}`,
+          detail: `Existen activos de inmovilizado valorados en ${inmovilizadoNeto.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€, pero no se ha registrado gasto de amortización en este mes. Distorsiona el EBITDA y el resultado mensual.`,
+          month: m
+        }));
       }
       return [];
     }
@@ -630,37 +642,29 @@ const ANOMALY_RULES = [
       const anomalies = [];
       const months = Object.keys(pygMensual).sort();
       if (months.length < 2) return [];
-
       for (let i = 1; i < months.length; i++) {
         const mPrev = months[i - 1];
         const mCurr = months[i];
-        
         const ingPrev = pygMensual[mPrev]?.totalIngresos || 0;
         const ingCurr = pygMensual[mCurr]?.totalIngresos || 0;
-        
         const absDiff = ingCurr - ingPrev;
         const absDiffVal = Math.abs(absDiff);
-        
         if (absDiffVal > 3000) {
           const pctChange = ingPrev > 0 ? (absDiff / ingPrev) * 100 : (ingCurr > 0 ? 100 : 0);
           if (Math.abs(pctChange) > 40) {
             const group7Prev = {};
             const group7Curr = {};
-            
             const entriesPrev = entries.filter(e => e.monthKey === mPrev && e.grupo === '7');
             const entriesCurr = entries.filter(e => e.monthKey === mCurr && e.grupo === '7');
-            
             entriesPrev.forEach(e => {
               group7Prev[e.cuenta] = (group7Prev[e.cuenta] || 0) + (e.haber - e.debe);
             });
             entriesCurr.forEach(e => {
               group7Curr[e.cuenta] = (group7Curr[e.cuenta] || 0) + (e.haber - e.debe);
             });
-            
             const allSubAccounts = new Set([...Object.keys(group7Prev), ...Object.keys(group7Curr)]);
             let maxContribCta = '—';
             let maxContribVal = -1;
-            
             for (const cta of allSubAccounts) {
               const prevVal = group7Prev[cta] || 0;
               const currVal = group7Curr[cta] || 0;
@@ -670,15 +674,14 @@ const ANOMALY_RULES = [
                 maxContribCta = cta;
               }
             }
-            
             const ccurrVal = group7Curr[maxContribCta] || 0;
             const weightPct = ingCurr > 0 ? (ccurrVal / ingCurr) * 100 : 0;
-            
             const direction = absDiff > 0 ? 'incremento' : 'descenso';
             anomalies.push({
               severity: 'high',
               message: `Variación brusca de ingresos (${mPrev} → ${mCurr})`,
-              detail: `Se detectó un ${direction} de ingresos de ${pctChange.toFixed(1)}% (${absDiffVal.toLocaleString('es-ES', {maximumFractionDigits:0})}€ de diferencia absoluta). La subcuenta que más contribuyó al cambio fue la ${maxContribCta} con una variación de ${maxContribVal.toLocaleString('es-ES', {maximumFractionDigits:0})}€ y un peso del ${weightPct.toFixed(1)}% sobre los ingresos de ${mCurr}.`
+              detail: `Se detectó un ${direction} de ingresos de ${pctChange.toFixed(1)}% (${absDiffVal.toLocaleString('es-ES', {maximumFractionDigits:0})}€ de diferencia absoluta). La subcuenta que más contribuyó al cambio fue la ${maxContribCta} con una variación de ${maxContribVal.toLocaleString('es-ES', {maximumFractionDigits:0})}€ y un peso del ${weightPct.toFixed(1)}% sobre los ingresos de ${mCurr}.`,
+              month: mCurr
             });
           }
         }
@@ -695,24 +698,25 @@ const ANOMALY_RULES = [
       if (months.length === 0) return [];
       const openingMonth = months[0];
       const closingMonth = months[months.length - 1];
-
       const entries129 = entries.filter(e => 
         e.cuenta.startsWith('129') && 
         e.monthKey !== openingMonth && 
         e.monthKey !== closingMonth
       );
       if (entries129.length === 0) return [];
-      
       const affectedMonths = [...new Set(entries129.map(e => e.monthKey).filter(Boolean))].sort();
-      const example = entries129[0];
-      const importe = example.debe > 0 ? example.debe : example.haber;
-      const t = example.debe > 0 ? 'D' : 'H';
-      
-      return [{
-        severity: 'high',
-        message: 'Uso de la cuenta 129 fuera de cierre',
-        detail: `Se detectaron ${entries129.length} apuntes en la cuenta 129 (Resultado del ejercicio) fuera de los meses de apertura/cierre, afectando a los meses: ${affectedMonths.join(', ')}. [Asiento Ej: #${example.asiento || 's/n'}, ${example.fecha || 'sin fecha'}, cta ${example.cuenta}, ${importe.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€ (${t}), ${example.descripcion || 'sin concepto'}]`
-      }];
+      return affectedMonths.map(m => {
+        const mEntries = entries129.filter(e => e.monthKey === m);
+        const example = mEntries[0];
+        const importe = example.debe > 0 ? example.debe : example.haber;
+        const t = example.debe > 0 ? 'D' : 'H';
+        return {
+          severity: 'high',
+          message: `Uso de la cuenta 129 fuera de cierre en ${m}`,
+          detail: `Se detectaron ${mEntries.length} apuntes en la cuenta 129 en este mes. [Asiento Ej: #${example.asiento || 's/n'}, ${example.fecha || 'sin fecha'}, cta ${example.cuenta}, ${importe.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2})}€ (${t}), ${example.descripcion || 'sin concepto'}]`,
+          month: m
+        };
+      });
     }
   },
   {
@@ -745,7 +749,7 @@ const ANOMALY_RULES = [
       const csRes = saldoCuenta(entries, ['10']);
       const csSaldo = csRes.haber - csRes.debe;
       
-      const balance = buildBalanceEstimated(entries);
+      const balance = buildBalanceEstimado(entries);
       const pnSaldo = balance.patrimonioNeto;
 
       if (csSaldo > 0 && pnSaldo < (csSaldo / 2)) {
@@ -1005,6 +1009,38 @@ function getConfidenceMeta(baseTrustScore, anomalies, ebitdaSuspect, contextChec
   // Deduplicar limitaciones
   const uniqueLimitations = [...new Set(analysisLimitations.filter(Boolean))];
 
+  // ── 7. Granularidad mensual de confianza ──
+  const monthlyConfidence = {};
+  if (months && months.length > 0) {
+    for (const m of months) {
+      let mScore = 100;
+      const mAnomalies = [];
+      anomalies.forEach(a => {
+        const mentionsOtherMonth = months.some(otherM => otherM !== m && 
+          ((a.message || '') + ' ' + (a.detail || '')).includes(otherM));
+        const isForThisMonth = a.month === m || 
+          ((a.message || '') + ' ' + (a.detail || '')).includes(m);
+        if (isForThisMonth || (!a.month && !mentionsOtherMonth)) {
+          mAnomalies.push(a);
+          if (a.severity === 'critical') mScore -= 30;
+          else if (a.severity === 'high') mScore -= 15;
+          else if (a.severity === 'medium') mScore -= 5;
+          else if (a.severity === 'low') mScore -= 2;
+        }
+      });
+      const hasMDescuadre = mAnomalies.some(a => a.id === 'asiento_descuadrado' || a.id === 'descuadre_contable');
+      if (hasMDescuadre) mScore -= 20;
+      if (deltaHuman !== 0) {
+        mScore += deltaHuman;
+      }
+      mScore = Math.max(0, Math.min(100, Math.floor(mScore)));
+      monthlyConfidence[m] = {
+        trustScore: mScore,
+        anomalies: mAnomalies
+      };
+    }
+  }
+
   return {
     trustScore,
     confidenceLevel,
@@ -1014,7 +1050,8 @@ function getConfidenceMeta(baseTrustScore, anomalies, ebitdaSuspect, contextChec
     ebitdaSuspect,
     analysisLimitations: uniqueLimitations,
     fundingReadinessFlags,
-    auditReasons  // Opcional — trazabilidad interna del ajuste humano
+    auditReasons,  // Opcional — trazabilidad interna del ajuste humano
+    byMonth: monthlyConfidence
   };
 }
 
@@ -1023,7 +1060,7 @@ function getConfidenceMeta(baseTrustScore, anomalies, ebitdaSuspect, contextChec
  * analyzeLedger(parsedLedger, profileId, customMapping, approvedAccruals, contextChecklist) → AnalysisResult
  * @param {Object|null} contextChecklist - Señales humanas de calidad contable (null = neutro)
  */
-function analyzeLedger(parsedLedger, profileId, customMapping = null, approvedAccruals = [], contextChecklist = null) {
+function analyzeLedger(parsedLedger, profileId, customMapping = null, approvedAccruals = [], contextChecklist = null, options = {}) {
   const { entries, byMonth } = parsedLedger;
   const months = Object.keys(byMonth).sort();
   const nMeses = Math.max(months.length, 1);
@@ -1046,7 +1083,7 @@ function analyzeLedger(parsedLedger, profileId, customMapping = null, approvedAc
 
   // Detección de Anomalías Analíticas (Aptki Pro)
   // INMUTABILIDAD: NO mutamos parsedLedger.anomalies. Combinamos en array nuevo.
-  const analyzerAnomalies = runAnomalyEngine(entries, pygMensual, categoryMap);
+  const analyzerAnomalies = options.skipAnomalies ? [] : runAnomalyEngine(entries, pygMensual, categoryMap);
   // Nueva lógica de deduplicación contextual (Fase 7)
   const getAnomalyContextKey = (a) => {
     const context = a.month || a.cuenta || (a.detail ? a.detail.substring(0, 35).trim() : 'global');
