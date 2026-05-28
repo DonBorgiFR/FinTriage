@@ -1,4 +1,4 @@
-# Contrato de Datos — APTKI Workstation
+# Contrato de Datos — FinTriage
 
 > Documento inmutable que define la estructura exacta de los payloads que fluyen entre módulos.
 > Cualquier módulo que consuma `AnalysisResult` DEBE leer este documento.
@@ -140,7 +140,7 @@
 | `scorer.js` | `totales.ingresos`, `totales.ebitda`, `totales.resultado`, `balance.*`, `totales.cajaFinal` | Scoring ENISA/CDTI |
 | `forecaster.js` | `pygMensual`, `totales.ingresos`, `totales.gastos`, `lastMonth`, `lastMonthEntries` | Proyección 12M |
 | `exporter.js` | Todo el `AnalysisResult` + `STATE.parsedLedger.anomalies` | Export Excel/PDF |
-| `session.js` | `STATE.parsedLedger`, `STATE.analysisResult`, `STATE.auditTrail` | Persistencia .aptki |
+| `session.js` | `STATE.parsedLedger`, `STATE.analysisResult`, `STATE.auditTrail` | Persistencia .fintriage |
 
 ---
 

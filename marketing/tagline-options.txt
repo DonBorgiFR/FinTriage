@@ -1,0 +1,24 @@
+# Propuestas de Taglines para FinTriage
+
+Aquí tienes varias opciones de lemas / claims comerciales clasificados por enfoque, ideales para usar en la web, en tu perfil de LinkedIn o como subtítulo del proyecto:
+
+---
+
+## Enfoque 1: Técnico y Analítico (El más recomendado para Founders y Advisors)
+> "Triage y diagnóstico contable local-first para startups y pymes."
+> "De libro diario bruto a cockpit financiero interactivo en 5 segundos."
+> "Saneamiento contable y análisis de caja libre de servidores."
+
+---
+
+## Enfoque 2: Privacidad y Confidencialidad (Destaca el valor Local-First)
+> "El cockpit financiero para startups que respeta al 100% la privacidad de tus datos."
+> "Análisis financiero profesional in-browser: tus datos nunca salen de tu ordenador."
+> "Triage de cartera para CFOs y advisors con confidencialidad por diseño."
+
+---
+
+## Enfoque 3: EBITDA y Diagnóstico de Riegos (Orientado a la resolución de problemas contables)
+> "Normaliza tu EBITDA, limpia tu balance y evalúa tu elegibilidad ENISA al instante."
+> "Diagnóstico automatizado de riesgos contables y supervivencia de caja."
+> "La herramienta definitiva para la auditoría previa y due diligence de tus startups."

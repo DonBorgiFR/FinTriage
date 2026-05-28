@@ -4,15 +4,15 @@ Este documento detalla los 5 casos de prueba (Test Cases) esenciales para verifi
 
 ---
 
-## Caso de Prueba 1: Ingesta en Lote de Sesiones .aptki
+## Caso de Prueba 1: Ingesta en Lote de Sesiones .fintriage
 
 ### Objetivo:
-Verificar que la ingesta múltiple de archivos `.aptki` reconstruye de forma correcta y reactiva la tabla de control de la cartera.
+Verificar que la ingesta múltiple de archivos `.fintriage` reconstruye de forma correcta y reactiva la tabla de control de la cartera.
 
 ### Pasos:
 1. Navegar a la pestaña **Cartera** en el menú superior o arrastrar los archivos en la pantalla principal.
-2. Hacer clic en **Importar Sesión / Cartera (.aptki)**.
-3. Seleccionar de forma simultánea de 2 a 4 archivos `.aptki` previamente guardados o cargar un archivo consolidado de cartera (`cartera_aptki_xxxx.aptki`).
+2. Hacer clic en **Importar Sesión / Cartera (.fintriage)**.
+3. Seleccionar de forma simultánea de 2 a 4 archivos `.fintriage` previamente guardados o cargar un archivo consolidado de cartera (`cartera_fintriage_xxxx.fintriage`).
 4. Comprobar que la vista cambia automáticamente a la pestaña **Cartera Multicompañía**.
 5. Verificar que la tabla muestra las filas correspondientes con el nombre, arquetipo, Runway, Trust Score, Foco Principal, Bloqueador, Ruta y Semáforo de Urgencia correctos.
 
@@ -47,7 +47,7 @@ El formato es limpio, austero, legible y los valores coinciden exactamente con l
 Confirmar la aplicación determinista de la regla de bloqueo si una startup posee deudas con administraciones públicas superiores a 3.000€.
 
 ### Pasos:
-1. Preparar un libro diario contable (o modificar una sesión `.aptki`) de forma que el saldo neto acreedor de las cuentas del **Grupo 47** (Hacienda Pública y Seguridad Social) sume un importe de 3.500€.
+1. Preparar un libro diario contable (o modificar una sesión `.fintriage`) de forma que el saldo neto acreedor de las cuentas del **Grupo 47** (Hacienda Pública y Seguridad Social) sume un importe de 3.500€.
 2. Ingestar la sesión o diario en la Workstation.
 3. Observar la fila de la startup en la tabla de la **Cartera**.
 4. Verificar que:

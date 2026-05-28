@@ -1,5 +1,5 @@
 /**
- * session.js — Gestor de persistencia de sesiones (.aptki) con Soporte Dual de Cartera
+ * session.js — Gestor de persistencia de sesiones (.fintriage) con Soporte Dual de Cartera
  * Permite guardar y cargar sesiones individuales y carteras multi-empresa consolidadas.
  */
 
@@ -46,7 +46,7 @@ function exportSession() {
   a.href = url;
   
   const safeName = (STATE.empresa.nombre || 'sesion').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-  a.download = `${safeName}_aptki.aptki`;
+  a.download = `${safeName}.fintriage`;
   
   document.body.appendChild(a);
   a.click();
@@ -58,7 +58,7 @@ function exportSession() {
 
 /**
  * exportPortfolioSession()
- * @description Exporta la lista completa de startups de la cartera en un único archivo consolidado .aptki.
+ * @description Exporta la lista completa de startups de la cartera en un único archivo consolidado .fintriage.
  */
 function exportPortfolioSession() {
   if (!STATE.cartera || STATE.cartera.length === 0) {
@@ -84,7 +84,7 @@ function exportPortfolioSession() {
   
   const a = document.createElement('a');
   a.href = url;
-  a.download = `cartera_aptki_${new Date().toISOString().slice(0, 10)}.aptki`;
+  a.download = `cartera_fintriage_${new Date().toISOString().slice(0, 10)}.fintriage`;
   
   document.body.appendChild(a);
   a.click();
@@ -96,12 +96,12 @@ function exportPortfolioSession() {
 
 /**
  * importSession(file)
- * @description Lee un archivo `.aptki`, decodifica el JSON y determina de forma transparente
+ * @description Lee un archivo `.fintriage` o `.aptki`, decodifica el JSON y determina de forma transparente
  * si es un archivo de cartera o de startup única, rehidratando la UI de manera correspondiente.
  */
 function importSession(file) {
-  if (!file.name.endsWith('.aptki') && !file.name.endsWith('.json')) {
-    showToast('Formato de archivo no válido. Usa .aptki', 'error');
+  if (!file.name.endsWith('.fintriage') && !file.name.endsWith('.aptki') && !file.name.endsWith('.json')) {
+    showToast('Formato de archivo no válido. Usa .fintriage', 'error');
     return;
   }
 
@@ -223,13 +223,13 @@ function loadSingleSessionData(data, filename) {
 
 /**
  * addSessionToCartera(file)
- * @description Procesa un archivo .aptki individual y lo agrega a la cartera activa en memoria,
+ * @description Procesa un archivo .fintriage o .aptki individual y lo agrega a la cartera activa en memoria,
  * re-evaluando su triage financiero.
  */
 function addSessionToCartera(file) {
   return new Promise((resolve, reject) => {
-    if (!file.name.endsWith('.aptki') && !file.name.endsWith('.json')) {
-      showToast('Formato no válido para cartera. Usa .aptki', 'error');
+    if (!file.name.endsWith('.fintriage') && !file.name.endsWith('.aptki') && !file.name.endsWith('.json')) {
+      showToast('Formato no válido para cartera. Usa .fintriage', 'error');
       resolve(null);
       return;
     }
@@ -247,7 +247,7 @@ function addSessionToCartera(file) {
 
         // Construir objeto provisional de startup
         const startupObj = {
-          nombre: data.empresa?.nombre || file.name.replace('_aptki.aptki', '').replace('.aptki', ''),
+          nombre: data.empresa?.nombre || file.name.replace('.fintriage', '').replace('.aptki', ''),
           arquetipo: BUSINESS_PROFILES.find(p => p.id === data.selectedProfileId)?.name || 'General',
           selectedProfileId: data.selectedProfileId,
           sessionData: data

@@ -331,7 +331,7 @@ function buildBalanceEstimado(entries) {
   };
 }
 
-// ---- Detección Analítica de Anomalías (Aptki Pro - Arquitectura Declarativa) ----
+// ---- Detección Analítica de Anomalías (CFO Analytical Engine - Arquitectura Declarativa) ----
 const ANOMALY_RULES = [
   {
     id: 'cifras_redondas',
@@ -506,7 +506,7 @@ const ANOMALY_RULES = [
     severity: 'high',
     label: 'Riesgo Fiscal: Cuenta 551 Deudora',
     check: (entries, pygMensual, categoryMap) => {
-      // APTKI ANALYTICAL NOTE: Se consolidan las cuentas 551 (Cuenta corriente con socios y administradores)
+      // CFO ANALYTICAL NOTE: Se consolidan las cuentas 551 (Cuenta corriente con socios y administradores)
       // y 550 (Titular de la explotación). La 550 es típica de empresarios individuales / autónomos,
       // pero en startups en fases tempranas es común encontrarla de forma transitoria o errónea
       // antes de constituir formalmente la SL, considerándose admisible su análisis conjunto aquí.
@@ -531,7 +531,7 @@ const ANOMALY_RULES = [
     severity: 'high',
     label: 'Riesgo Fiscal: Cuenta 551 Acreedora',
     check: (entries, pygMensual, categoryMap) => {
-      // APTKI ANALYTICAL NOTE: Se consolidan las cuentas 551 y 550.
+      // CFO ANALYTICAL NOTE: Se consolidan las cuentas 551 y 550.
       // ADVERTENCIA DE AGREGACIÓN: Se evalúa el saldo neto agregado de la 551/550, pudiendo ocultar
       // compensaciones cruzadas entre socios.
       const cta551 = saldoCuenta(entries, ['551', '550']);
@@ -1081,7 +1081,7 @@ function analyzeLedger(parsedLedger, profileId, customMapping = null, approvedAc
   // PyG mensual (usamos el byMonthDevengado)
   const pygMensual = buildPyGMensual(byMonthDevengado, categoryMap);
 
-  // Detección de Anomalías Analíticas (Aptki Pro)
+  // Detección de Anomalías Analíticas (CFO Analytical Engine)
   // INMUTABILIDAD: NO mutamos parsedLedger.anomalies. Combinamos en array nuevo.
   const analyzerAnomalies = options.skipAnomalies ? [] : runAnomalyEngine(entries, pygMensual, categoryMap);
   // Nueva lógica de deduplicación contextual (Fase 7)

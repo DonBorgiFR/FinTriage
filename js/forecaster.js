@@ -148,7 +148,7 @@ function renderForecast() {
     result = buildForecast(STATE.analysisResult, hyp);
     STATE.forecastResult = result;
   } catch (errForecast) {
-    console.error('[APTKI] Error al construir el forecast en renderForecast:', errForecast);
+    console.error('[FinTriage] Error al construir el forecast en renderForecast:', errForecast);
     result = null;
     STATE.forecastResult = null;
   }

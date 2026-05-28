@@ -260,7 +260,7 @@ function renderScorer() {
       if (typeof renderChecklist === 'function') renderChecklist();
       showToast('Scoring actualizado ✓', 'success');
     } catch (e) {
-      console.error('[APTKI] Error recalcular scoring:', e);
+      console.error('[FinTriage] Error recalcular scoring:', e);
       STATE.scoringResult = null;
       document.getElementById('scoring-results').innerHTML = _buildScoringHTML();
       showToast('⚠️ Error al recalcular scoring. Degradación aplicada.', 'warn', 5000);
@@ -289,7 +289,7 @@ function _buildScoringHTML() {
       scoring = scoreFinanciacion(STATE.analysisResult, STATE.scoringInputs || {});
       STATE.scoringResult = scoring;
     } catch (e) {
-      console.error('[APTKI] Error in scoreFinanciacion within _buildScoringHTML:', e);
+      console.error('[FinTriage] Error in scoreFinanciacion within _buildScoringHTML:', e);
       scoring = null;
       STATE.scoringResult = null;
     }

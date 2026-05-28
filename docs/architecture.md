@@ -1,6 +1,6 @@
-# Arquitectura de APTKI Workstation
+# Arquitectura de FinTriage
 
-APTKI Workstation es una herramienta client-side modular e interactiva diseñada para que consultores senior de APTKI realicen el saneamiento, periodificación, diagnóstico y triage estratégico de múltiples compañías (carteras) o de startups individuales a partir de sus libros diarios en formato PGC español (.xlsx).
+FinTriage es una herramienta client-side modular e interactiva diseñada para que CFOs y consultores independientes realicen el saneamiento, periodificación, diagnóstico y triage estratégico de múltiples compañías (carteras) o de startups individuales a partir de sus libros diarios en formato PGC español (.xlsx).
 
 El sistema sigue una arquitectura de flujo unidireccional y reactividad nativa basada en Proxies de Javascript, asegurando la inmutabilidad y la persistencia local de los datos.
 
@@ -10,11 +10,11 @@ El sistema sigue una arquitectura de flujo unidireccional y reactividad nativa b
 
 El flujo del pipeline financiero y de triage está dividido en dos grandes modos de operación:
 1. **Modo Startup Individual**: Ingesta un libro diario, detecta anomalías, permite correcciones (mapeos contables y periodificaciones de devengo) y produce un dashboard financiero interactivo con proyecciones y planes de choque.
-2. **Modo Cartera Multicompañía**: Permite la ingesta masiva de múltiples archivos `.aptki` para consolidar un panel ejecutivo que prioriza empresas por gravedad de caja, diagnostica bloqueadores de due diligence y enruta automáticamente las startups a los departamentos adecuados (CFO, Fundraising, Financiación Pública/Bancaria, Gestoría).
+2. **Modo Cartera Multicompañía**: Permite la ingesta masiva de múltiples archivos `.fintriage` para consolidar un panel ejecutivo que prioriza empresas por gravedad de caja, diagnostica bloqueadores de due diligence y enruta automáticamente las startups a los departamentos adecuados (CFO, Fundraising, Financiación Pública/Bancaria, Gestoría).
 
 ```mermaid
 graph TD
-    A[Archivos Contables .xlsx / Sesiones .aptki] -->|Carga / Arrastre| B(session.js)
+    A[Archivos Contables .xlsx / Sesiones .fintriage] -->|Carga / Arrastre| B(session.js)
     B -->|Modo Individual| C[Dashboard Startup]
     B -->|Modo Cartera| D[Triage Multicompañía]
     
@@ -46,7 +46,7 @@ graph TD
 *   **Invariante**: Evita dependencias de frameworks externos (React, Vue) manteniendo un rendimiento óptimo de 100% en el cliente.
 
 ### 2. Gestor de Persistencia y Soporte Dual (`js/session.js`)
-*   **Soporte**: Opera de forma transparente con dos esquemas del formato unificado `.aptki`:
+*   **Soporte**: Opera de forma transparente con dos esquemas del formato unificado `.fintriage`:
     *   `mode: "single"`: Estructura individual que guarda ledger parsed, mapeos personalizados, entradas de scoring, periodificaciones aprobadas, checklist Día 1, audit trail e inputs del cockpit de defensa.
     *   `mode: "portfolio"`: Estructura agregada que empaqueta las startups cargadas junto con sus metadatos y sessionData individuales completos.
 *   **Rehidratación**: Al importar una sesión consolidada, regenera automáticamente el triage de todas las empresas y las renderiza en la tabla de priorización.

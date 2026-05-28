@@ -1,5 +1,5 @@
 /**
- * checklist.js — Framework "Filtro Día 1" APTKI
+ * checklist.js — Framework "Filtro Día 1" FinTriage
  * Checklist interactivo con scoring 0-100 y persistencia localStorage.
  */
 
@@ -95,12 +95,19 @@ function getChecklistData(profileId) {
 // ---- Estado ----
 function loadChecklistState() {
   try {
-    return JSON.parse(localStorage.getItem('aptki_checklist') || '{}');
+    let state = localStorage.getItem('fintriage_checklist');
+    if (!state) {
+      state = localStorage.getItem('aptki_checklist');
+      if (state) {
+        localStorage.setItem('fintriage_checklist', state);
+      }
+    }
+    return JSON.parse(state || '{}');
   } catch { return {}; }
 }
 
 function saveChecklistState(state) {
-  localStorage.setItem('aptki_checklist', JSON.stringify(state));
+  localStorage.setItem('fintriage_checklist', JSON.stringify(state));
 }
 
 function computeScore(state, profileId) {
@@ -252,6 +259,7 @@ function renderChecklist() {
 
   // Reset
   document.getElementById('btn-reset-checklist')?.addEventListener('click', () => {
+    localStorage.removeItem('fintriage_checklist');
     localStorage.removeItem('aptki_checklist');
     renderChecklist();
   });

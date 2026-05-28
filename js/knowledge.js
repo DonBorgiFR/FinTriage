@@ -1,5 +1,5 @@
 /**
- * knowledge.js — Guía Interactiva de Financiación APTKI
+ * knowledge.js — Guía Interactiva de Financiación FinTriage
  * Datos en JSON editable. Añade o modifica directamente este archivo.
  */
 
@@ -147,7 +147,7 @@ const KNOWLEDGE_DATA = {
     title: 'Financiación Privada',
     icon: '💼',
     color: 'var(--amber)',
-    intro: 'Capital privado para startups: desde pre-seed hasta growth. APTKI gestiona el deal flow a través de Fork Capital.',
+    intro: 'Capital privado para startups: desde pre-seed hasta growth y Venture Capital.',
     items: [
       { nombre: 'Venture Capital (VC)', desc: 'Fondos de inversión. Tickets: Seed 100k-2M€, Series A 2-10M€. Requieren pitch deck, one-pager y due diligence completa.' },
       { nombre: 'Business Angels (BA)', desc: 'Inversores individuales. Tickets: 25k-500k€. Más ágiles que VC. Aportan smart money y red de contactos.' },

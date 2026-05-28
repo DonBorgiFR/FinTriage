@@ -1,5 +1,5 @@
 /* ============================================
-   APTKI WORKSTATION — Design System
+   FINTRIAGE — Design System
    Dark Glassmorphism · Inter/Outfit · Cyan/Purple
    ============================================ */
 
@@ -917,7 +917,7 @@ tbody tr:hover td { background: var(--bg-card); color: var(--text-primary); }
 }
 
 /* ============================================
-   APTKI WORKSTATION — UI Cleanup (Fase 7)
+   FINTRIAGE — UI Cleanup (Fase 7)
    ============================================ */
 .findings-empty-state {
   text-align: center;

@@ -3,8 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>APTKI Workstation — CFO Toolkit</title>
-  <meta name="description" content="Herramienta de análisis financiero para Consultores Senior APTKI. Procesa libros diarios PGC, calcula KPIs y genera diagnósticos automáticos." />
+  <title>FinTriage — CFO & Portfolio Toolkit</title>
+  <meta name="description" content="Herramienta local-first de análisis, saneamiento y triage financiero para startups y pymes. Procesa libros diarios PGC, calcula KPIs y genera diagnósticos contables de forma confidencial." />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon-icon.svg" />
+  <link rel="shortcut icon" href="assets/favicon-icon.svg" />
+  
+  <!-- Open Graph / LinkedIn / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://fin-triage.vercel.app/" />
+  <meta property="og:title" content="FinTriage — CFO & Portfolio Toolkit" />
+  <meta property="og:description" content="Herramienta local-first de análisis, saneamiento y triage contable para startups y pymes. Datos procesados 100% en tu navegador de forma confidencial." />
+  <meta property="og:image" content="https://fin-triage.vercel.app/assets/og-image.png" />
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:url" content="https://fin-triage.vercel.app/" />
+  <meta property="twitter:title" content="FinTriage — CFO & Portfolio Toolkit" />
+  <meta property="twitter:description" content="Herramienta local-first de análisis, saneamiento y triage contable para startups y pymes." />
+  <meta property="twitter:image" content="https://fin-triage.vercel.app/assets/og-image.png" />
+
   <link rel="stylesheet" href="css/index.css" />
 </head>
 <body>
@@ -13,8 +30,8 @@
   <!-- TOPBAR -->
   <header class="topbar">
     <div class="topbar-logo">
-      <img src="assets/logo.svg" alt="APTKI Logo" style="height:28px;width:auto;" onerror="this.style.display='none'" />
-      <div class="brand">APTKI <span>Workstation</span></div>
+      <img src="assets/logo.svg" alt="FinTriage Logo" style="height:28px;width:auto;" onerror="this.style.display='none'" />
+      <div class="brand">FinTriage</div>
     </div>
     <div class="topbar-sep"></div>
     <span class="topbar-badge" id="empresa-badge">Sin empresa cargada</span>
@@ -23,9 +40,9 @@
       <button class="btn btn-secondary" id="btn-export-excel" style="padding: 6px 12px; font-size: 0.8rem; display: none;" title="Exportar Modelo Financiero a Excel">📥 Excel</button>
       <button class="btn btn-secondary" id="btn-export-agentic" style="padding: 6px 12px; font-size: 0.8rem; display: none; border-color: var(--purple); color: var(--purple);" title="Copiar contexto ultradenso para LLMs">🤖 Prompt IA</button>
       <div class="topbar-sep" id="export-sep" style="display: none;"></div>
-      <label class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; cursor: pointer;" title="Cargar Sesión Guardada">
+      <label class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; cursor: pointer;" title="Cargar Sesión Guardada (.fintriage)">
         📂 Cargar Sesión
-        <input type="file" id="session-upload-input" accept=".aptki,.json" style="display:none;" />
+        <input type="file" id="session-upload-input" accept=".fintriage,.aptki,.json" style="display:none;" />
       </label>
       <button class="btn btn-primary" onclick="exportSession()" style="padding: 6px 12px; font-size: 0.8rem;" title="Guardar Progreso">💾 Guardar</button>
     </div>
@@ -509,7 +526,7 @@
     <section class="section" id="section-financiacion">
       <div class="page-header">
         <h1>Guía de Financiación</h1>
-        <p>Opciones de financiación pública, privada y bancaria — metodología APTKI.</p>
+        <p>Opciones de financiación pública, privada y bancaria — metodología de triage financiero.</p>
       </div>
       <div id="financiacion-root"><!-- Renderizado por knowledge.js --></div>
     </section>
@@ -527,7 +544,7 @@
     <section class="section" id="section-cartera">
       <div class="page-header">
         <h1>💼 Control de Cartera Multicompañía</h1>
-        <p>Priorización operativa y routing de startups. Importa múltiples sesiones <strong>.aptki</strong> para triage instantáneo y derivación interna.</p>
+        <p>Priorización operativa y routing de startups. Importa múltiples sesiones <strong>.fintriage</strong> para triage instantáneo.</p>
       </div>
 
       <!-- PANEL ACCIONES CARTERA -->
@@ -536,14 +553,14 @@
           <div style="flex: 1; min-width: 250px;">
             <div class="dropzone-mini" id="cartera-dropzone" style="border: 2px dashed var(--border); border-radius: 8px; padding: 16px; text-align: center; background: rgba(255,255,255,0.02); cursor: pointer;" role="button" tabindex="0" aria-label="Dropzone mini para cartera">
               <span style="font-size: 1.5rem; display: block; margin-bottom: 4px;">⬆️</span>
-              <span style="font-size: 0.85rem; font-weight: bold; color: var(--text-primary);">Cargar en lote (.aptki)</span>
+              <span style="font-size: 0.85rem; font-weight: bold; color: var(--text-primary);">Cargar en lote (.fintriage)</span>
               <span style="font-size: 0.75rem; display: block; color: var(--text-secondary); margin-top: 2px;">Arrastra o haz click para subir varias sesiones</span>
-              <input type="file" id="cartera-file-input" accept=".aptki,.json" multiple style="display: none;" />
+              <input type="file" id="cartera-file-input" accept=".fintriage,.aptki,.json" multiple style="display: none;" />
             </div>
           </div>
           <div style="display: flex; flex-direction: column; gap: 8px;">
             <button class="btn btn-primary" id="btn-export-cartera" style="padding: 10px 20px; font-size: 0.9rem;">
-              💾 Exportar Cartera (.aptki)
+              💾 Exportar Cartera (.fintriage)
             </button>
             <button class="btn btn-secondary" id="btn-limpiar-cartera" style="padding: 6px 12px; font-size: 0.8rem; border-color: rgba(255,50,50,0.3); color: rgba(255,100,100,0.9);">
               🗑️ Limpiar Cartera
@@ -587,7 +604,7 @@
             <tbody id="cartera-table-body">
               <tr>
                 <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 32px 0;">
-                  No hay startups en la cartera contable. Arrastra archivos <strong>.aptki</strong> para rellenar el triage.
+                  No hay startups en la cartera contable. Arrastra archivos <strong>.fintriage</strong> o <strong>.aptki</strong> para rellenar el triage.
                 </td>
               </tr>
             </tbody>

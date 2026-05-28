@@ -1,4 +1,4 @@
-# Arquitectura de APTKI Workstation
+# Arquitectura de FinTriage
 
 Guía de flujo de datos y estructura interna. El estado central vive en `STATE` (app.js) y se transforma capa por capa. Ningún paso modifica destructivamente los datos del paso anterior.
 

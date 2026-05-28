@@ -1,6 +1,6 @@
-# CHANGELOG — APTKI Workstation
+# CHANGELOG — FinTriage
 
-Historial de versiones y evolución del CFO Toolkit de APTKI.
+Historial de versiones y evolución del CFO Toolkit de FinTriage.
 
 ## [1.3.5] — 2026-05-21 (Refinamiento Visual PDF: Gráficos Correctamente Encuadrados)
 
@@ -140,7 +140,7 @@ Historial de versiones y evolución del CFO Toolkit de APTKI.
     *   **Nivel 2 (Bloqueadores)**: Detección automática de contingencias graves (Baja conciliación contable, Deuda fiscal >3.000€, Cuenta corriente con socios 551/550 >3.000€ *(umbral actualizado desde 10.000€ en v1.3.3)*).
     *   **Nivel 3 (Ruta)**: Derivación operativa sugerida (CFO, Fundraising, Financiación Pública, Financiación Bancaria, Gestoría).
 *   **Ficha Handoff Express**: Generación de resúmenes formateados listos para copiar con 1-click al portapapeles.
-*   **Soporte de Persistencia Dual (`js/session.js`)**: Extensión del formato `.aptki` para admitir el modo `"portfolio"` (empaquetado consolidado de múltiples startups) manteniendo compatibilidad transparente con el modo `"single"`.
+*   **Soporte de Persistencia Dual (`js/session.js`)**: Extensión del formato `.fintriage` para admitir el modo `"portfolio"` (empaquetado consolidado de múltiples startups) manteniendo compatibilidad transparente con el modo `"single"`.
 *   **UI Ejecutiva de Cartera**: Nueva pestaña de control minimalista con tabla ejecutiva, filtros avanzados y semáforos de prioridad basados en Runway e importación masiva de sesiones.
 
 ---
@@ -150,7 +150,7 @@ Historial de versiones y evolución del CFO Toolkit de APTKI.
 ### Añadido
 *   **Cockpit de Defensa y Supervivencia (`js/defensa.js`)**: Panel de choque para startups en situación crítica (Runway < 4 meses).
 *   **Simulador de Circulante e Impacto**: Modelador interactivo para proyectar mejoras en plazos de cobro (DSO), plazos de pago (DPO) y reducciones de gasto operativo sobre la caja disponible.
-*   **Acciones de Mitigación de Caja**: Checklist interactivo con 10 medidas de contingencia recomendadas por APTKI.
+*   **Acciones de Mitigación de Caja**: Checklist interactivo con 10 medidas de contingencia recomendadas por FinTriage.
 
 ### Modificado/Corregido
 *   **Consistencia DSO/DPO**: Corrección de signos y agregación estricta por prefijo de cuentas (Grupo 43 para clientes deudor, Grupo 40 para proveedores acreedor) en `defensa.js` y `cartera.js`.

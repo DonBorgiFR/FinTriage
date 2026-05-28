@@ -1,7 +1,7 @@
-# Backlog Operativo Vivo — APTKI Workstation
+# Backlog Operativo Vivo — FinTriage
 
 > [!NOTE]
-> Este documento representa la hoja de ruta dinámica y viva de la APTKI Workstation. Se abandona la nomenclatura de "Fases" rígidas en favor de un enfoque iterativo basado en 5 líneas de trabajo paralelas, priorizadas según validaciones y casos reales.
+> Este documento representa la hoja de ruta dinámica y viva de la FinTriage. Se abandona la nomenclatura de "Fases" rígidas en favor de un enfoque iterativo basado en 5 líneas de trabajo paralelas, priorizadas según validaciones y casos reales.
 
 ---
 

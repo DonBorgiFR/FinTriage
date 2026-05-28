@@ -1,6 +1,6 @@
-# Especificación del Formato de Sesión .aptki
+# Especificación del Formato de Sesión .fintriage
 
-El formato de sesión `.aptki` es un archivo de persistencia local basado en JSON unificado que permite a los consultores de APTKI guardar, compartir y retomar sus análisis sin necesidad de almacenamiento en la nube ni bases de datos activas en el navegador.
+El formato de sesión `.fintriage` es un archivo de persistencia local basado en JSON unificado que permite a los CFOs y consultores independientes guardar, compartir y retomar sus análisis sin necesidad de almacenamiento en la nube ni bases de datos activas en el navegador.
 
 El sistema soporta de forma nativa e integrada dos esquemas según el modo de operación (`single` o `portfolio`).
 

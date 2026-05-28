@@ -1,14 +1,14 @@
-# Revisión Conceptual y Mapa de Convergencia Técnica: APTKI Workstation
+# Revisión Conceptual y Mapa de Convergencia Técnica: FinTriage
 
-Este documento detalla el **análisis conceptual profundo** y el **plano de integración técnica (blueprint)** para incorporar las cuatro nuevas líneas de investigación financiera en la arquitectura determinista de la APTKI Workstation.
+Este documento detalla el **análisis conceptual profundo** y el **plano de integración técnica (blueprint)** para incorporar las cuatro nuevas líneas de investigación financiera en la arquitectura determinista de la FinTriage.
 
 ---
 
 ## 1. Introducción y Contexto Estratégico
 
-Las cuatro investigaciones aportadas representan un salto cualitativo excepcional para APTKI. Pasan de la contabilidad plana al **asesoramiento estratégico de nivel CFO (Chief Financial Officer)** para startups tecnológicas en el ecosistema español. El rigor, la precisión en los códigos de cuenta y la alineación con la legislación vigente (Ley 28/2022 de Startups, Ley de Sociedades de Capital, Ley del Impuesto sobre Sociedades y Reglamentos de la UE) son extraordinarios.
+Las cuatro investigaciones aportadas representan un salto cualitativo excepcional para FinTriage. Pasan de la contabilidad plana al **asesoramiento estratégico de nivel CFO (Chief Financial Officer)** para startups tecnológicas en el ecosistema español. El rigor, la precisión en los códigos de cuenta y la alineación con la legislación vigente (Ley 28/2022 de Startups, Ley de Sociedades de Capital, Ley del Impuesto sobre Sociedades y Reglamentos de la UE) son extraordinarios.
 
-A continuación, se presenta la revisión conceptual detallada con las "gafas de APTKI" (buscando robustez analítica, mitigación de riesgos y automatización limpia) y, posteriormente, el diseño técnico de su convergencia con el código del producto.
+A continuación, se presenta la revisión conceptual detallada con las "gafas de FinTriage" (buscando robustez analítica, mitigación de riesgos y automatización limpia) y, posteriormente, el diseño técnico de su convergencia con el código del producto.
 
 ---
 
@@ -48,7 +48,7 @@ A continuación, se presenta la revisión conceptual detallada con las "gafas de
 
 ## 3. Parte II: Mapa de Convergencia con el Producto (Workstation Integration)
 
-La APTKI Workstation es un entorno **analítico determinista basado en reglas matemáticas puras**. Para integrar esta base de conocimiento, traduciremos los conceptos en reglas de código precisas dentro de `js/analyzer.js` y controles interactivos en la interfaz de usuario.
+La FinTriage es un entorno **analítico determinista basado en reglas matemáticas puras**. Para integrar esta base de conocimiento, traduciremos los conceptos en reglas de código precisas dentro de `js/analyzer.js` y controles interactivos en la interfaz de usuario.
 
 ```mermaid
 graph TD
@@ -70,7 +70,7 @@ Inyectaremos seis nuevas reglas analíticas dentro de `ANOMALY_RULES` en `analyz
 * **Lógica:** Evalúa si la empresa incurre en causa de crisis europea.
 * **Fórmula Contable:**
   $$PN - CS - PE - \text{Pérdidas acumuladas (cuenta 121)} < -\frac{CS + PE}{2}$$
-  *(En balance simplificado APTKI, tomamos el Patrimonio Neto, el Capital Social y el saldo negativo acumulado).*
+  *(En balance simplificado FinTriage, tomamos el Patrimonio Neto, el Capital Social y el saldo negativo acumulado).*
 
 #### Regla B: Alerta de Causa de Disolución Legal (Art. 363.1.e LSC)
 * **Lógica:** Si el patrimonio neto total del balance es inferior a la mitad del capital social de la SL.

@@ -260,7 +260,7 @@ function loadActiveStartupFromCartera(nombre) {
   STATE.carteraActiveStartup = startup.nombre;
   
   // Llamamos al helper cargador de session.js
-  loadSingleSessionData(startup.sessionData, `${startup.nombre}_aptki.aptki`);
+  loadSingleSessionData(startup.sessionData, `${startup.nombre}.fintriage`);
   
   showToast(`Analizando startup "${startup.nombre}" de forma individual ✓`, 'success');
   if (typeof navigate === 'function') navigate('dashboard');
@@ -298,7 +298,7 @@ function renderCarteraTab() {
     containerBody.innerHTML = `
       <tr>
         <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 32px 0;">
-          No hay startups en la cartera contable. Arrastra archivos <strong>.aptki</strong> para rellenar el triage.
+          No hay startups en la cartera contable. Arrastra archivos <strong>.fintriage</strong> o <strong>.aptki</strong> para rellenar el triage.
         </td>
       </tr>
     `;
@@ -381,7 +381,7 @@ function selectCarteraStartup(nombre) {
     
     const blockerStr = startup.bloqueador ? `BLOQUEADOR DETECTADO: "${startup.bloqueador}". ` : "Sin bloqueadores administrativos previos. ";
     
-    handoffTextarea.value = `Derivación Operativa APTKI - startup: ${startup.nombre.toUpperCase()}
+    handoffTextarea.value = `Ficha de Triage - startup: ${startup.nombre.toUpperCase()}
 • Estado: Prioridad ${startup.semaforo === "🔴" ? "ROJA" : startup.semaforo === "🟡" ? "AMARILLA" : "VERDE"} (Gravedad ${startup.priorityScore}/100)
 • Diagnóstico Raíz: Foco en ${startup.focoPrincipal} (Runway: ${startup.runway === 99 ? 'Rentable' : startup.runway + ' meses'} | Trust Score: ${startup.trustScore}%)
 • Ruta Asignada: ${startup.rutaSugerida.toUpperCase()}

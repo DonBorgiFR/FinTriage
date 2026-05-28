@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
         : { defensa: '' };
 
       const markdown = `<system_context>
-Estos datos financieros pertenecen a la empresa ${STATE.empresa.nombre || 'analizada'} y han sido procesados y estructurados automáticamente por la APTKI Workstation a partir de su libro diario contable bruto.
+Estos datos financieros pertenecen a la empresa ${STATE.empresa.nombre || 'analizada'} y han sido procesados y estructurados automáticamente por FinTriage a partir de su libro diario contable bruto.
 </system_context>
 
 <financial_data>
@@ -104,7 +104,7 @@ ${defensa || 'No se han generado alegaciones de defensa.'}
         // 4. Configurar opciones de html2pdf
         const opt = {
           margin:       0,
-          filename:     `${empresa}_aptki_report.pdf`.replace(/[^a-z0-9]/gi, '_').toLowerCase(),
+          filename:     `${empresa}_fintriage_report.pdf`.replace(/[^a-z0-9]/gi, '_').toLowerCase(),
           image:        { type: 'jpeg', quality: 0.98 },
           html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
           jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -171,7 +171,7 @@ function exportToExcel(data, forecast, scoring) {
     XLSX.utils.book_append_sheet(wb, wsConf, "Calidad del Dato");
 
     // Exportar
-    const fileName = `${STATE.empresa.nombre || 'modelo'}_financiero_aptki.xlsx`.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const fileName = `${STATE.empresa.nombre || 'modelo'}_financiero_fintriage.xlsx`.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     XLSX.writeFile(wb, fileName);
     showToast('Excel Exportado ✓', 'success');
 
@@ -624,7 +624,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
     <!-- Página 1: Portada -->
     <div class="pdf-page">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
-        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">FINTRIAGE</span>
         <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">INFORME CONFIDENCIAL</span>
       </div>
       
@@ -673,7 +673,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
       </div>
 
       <div class="pdf-footer">
-        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Generado con FinTriage · Documento de Trabajo Confidencial</span>
         <span>Página 1 de 7</span>
       </div>
     </div>
@@ -681,7 +681,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
     <!-- Página 2: Resumen Ejecutivo y Diagnóstico Financiero -->
     <div class="pdf-page">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
-        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">FINTRIAGE</span>
         <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
       </div>
 
@@ -738,7 +738,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
       </div>
 
       <div class="pdf-footer">
-        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Generado con FinTriage · Documento de Trabajo Confidencial</span>
         <span>Página 2 de 7</span>
       </div>
     </div>
@@ -746,7 +746,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
     <!-- Página 3: Análisis Gráfico I: Evolución de Caja y Rentabilidad -->
     <div class="pdf-page">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
-        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">FINTRIAGE</span>
         <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
       </div>
 
@@ -773,7 +773,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
       </div>
 
       <div class="pdf-footer">
-        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Generado con FinTriage · Documento de Trabajo Confidencial</span>
         <span>Página 3 de 7</span>
       </div>
     </div>
@@ -781,7 +781,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
     <!-- Página 4: Proyección de Runway y Dinámica de Cashflow -->
     <div class="pdf-page">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
-        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">FINTRIAGE</span>
         <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
       </div>
 
@@ -808,7 +808,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
       </div>
 
       <div class="pdf-footer">
-        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Generado con FinTriage · Documento de Trabajo Confidencial</span>
         <span>Página 4 de 7</span>
       </div>
     </div>
@@ -816,7 +816,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
     <!-- Página 5: Cuenta de Resultados (PyG) Analítica -->
     <div class="pdf-page">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
-        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">FINTRIAGE</span>
         <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
       </div>
 
@@ -834,7 +834,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
       </div>
 
       <div class="pdf-footer">
-        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Generado con FinTriage · Documento de Trabajo Confidencial</span>
         <span>Página 5 de 7</span>
       </div>
     </div>
@@ -842,7 +842,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
     <!-- Página 6: Proyecciones Financieras (Forecast 12 Meses) -->
     <div class="pdf-page">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
-        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">FINTRIAGE</span>
         <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
       </div>
 
@@ -865,7 +865,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
       </div>
 
       <div class="pdf-footer">
-        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Generado con FinTriage · Documento de Trabajo Confidencial</span>
         <span>Página 6 de 7</span>
       </div>
     </div>
@@ -873,7 +873,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
     <!-- Página 7: Anexo de Trazabilidad, Confianza y Ajustes Contables -->
     <div class="pdf-page">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px;">
-        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">APTKI WORKSTATION</span>
+        <span style="font-size: 8px; font-weight: 700; color: #9ca3af; letter-spacing: 0.1em; font-family: var(--font-display);">FINTRIAGE</span>
         <span style="font-size: 8px; color: #9ca3af; font-family: var(--font-display);">${empresa}</span>
       </div>
 
@@ -907,7 +907,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
       </div>
 
       <div class="pdf-footer">
-        <span>Generado por APTKI Workstation · Documento Altamente Confidencial</span>
+        <span>Generado con FinTriage · Documento de Trabajo Confidencial</span>
         <span>Página 7 de 7</span>
       </div>
     </div>

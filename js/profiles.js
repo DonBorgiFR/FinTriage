@@ -204,13 +204,13 @@ const BUSINESS_PROFILES = [
     id: 'generic',
     icon: '📊',
     name: 'Genérico',
-    desc: 'Solo KPIs universales APTKI',
+    desc: 'Solo KPIs universales',
     kpis: [],
     extraInputs: []
   }
 ];
 
-// KPIs UNIVERSALES APTKI (todos los perfiles)
+// KPIs UNIVERSALES FINTRIAGE (todos los perfiles)
 const UNIVERSAL_KPIS = [
   {
     id: 'runway',
@@ -240,7 +240,7 @@ const UNIVERSAL_KPIS = [
     label: 'R. Endeudamiento',
     unit: '%',
     format: 'percent',
-    desc: 'Pasivo total / Patrimonio Neto. Óptimo APTKI: 40-60%',
+    desc: 'Pasivo total / Patrimonio Neto. Rango óptimo: 40-60%',
     compute: (data) => {
       if (!data.balance) return null;
       const pn = data.balance.patrimonioNeto;

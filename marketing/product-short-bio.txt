@@ -1,0 +1,5 @@
+FinTriage es una plataforma client-side y Local-First para el análisis, saneamiento y triage financiero de startups y pymes a partir de su libro diario contable (PGC español). 
+
+La herramienta permite a CFOs externos, consultores independientes y fundadores automatizar diagnósticos de integridad contable (Trust Score), periodificar de forma visual gastos atípicos para normalizar el EBITDA, proyectar escenarios de caja a 12 meses y gestionar carteras de múltiples compañías de forma unificada. 
+
+Al operar íntegramente del lado del cliente sin enviar información a servidores externos, FinTriage garantiza la confidencialidad absoluta de los datos contables del negocio por diseño.

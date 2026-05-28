@@ -8,20 +8,20 @@ if (typeof PerformanceObserver !== 'undefined') {
   const observer = new PerformanceObserver((list) => {
     for (const entry of list.getEntries()) {
       if (entry.duration > 50) {
-        console.warn(`[APTKI] [LONG TASK DETECTADO] Duración: ${entry.duration.toFixed(2)}ms, inicio: ${entry.startTime.toFixed(2)}ms`);
+        console.warn(`[FinTriage] [LONG TASK DETECTADO] Duración: ${entry.duration.toFixed(2)}ms, inicio: ${entry.startTime.toFixed(2)}ms`);
         if (entry.duration > 200) {
-          console.error(`[APTKI] [BLOQUEO GRAVE DETECTADO] Tarea larga > 200ms: ${entry.duration.toFixed(2)}ms!`);
+          console.error(`[FinTriage] [BLOQUEO GRAVE DETECTADO] Tarea larga > 200ms: ${entry.duration.toFixed(2)}ms!`);
         } else if (entry.duration > 100) {
-          console.warn(`[APTKI] [BLOQUEO SIGNIFICATIVO DETECTADO] Tarea larga > 100ms: ${entry.duration.toFixed(2)}ms!`);
+          console.warn(`[FinTriage] [BLOQUEO SIGNIFICATIVO DETECTADO] Tarea larga > 100ms: ${entry.duration.toFixed(2)}ms!`);
         }
       }
     }
   });
   try {
     observer.observe({ entryTypes: ['longtask'] });
-    console.log('[APTKI] PerformanceObserver de Long Tasks inicializado correctamente.');
+    console.log('[FinTriage] PerformanceObserver de Long Tasks inicializado correctamente.');
   } catch (e) {
-    console.warn('[APTKI] PerformanceObserver de longtask no soportado en este navegador:', e.message);
+    console.warn('[FinTriage] PerformanceObserver de longtask no soportado en este navegador:', e.message);
   }
 }
 
@@ -854,7 +854,7 @@ function renderAccrualsTable() {
 document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
   // Protección contra doble click / re-procesados concurrentes
   if (STATE._isProcessingDashboard) {
-    console.warn('[APTKI] Intento de re-generación ignorado: proceso ya en ejecución.');
+    console.warn('[FinTriage] Intento de re-generación ignorado: proceso ya en ejecución.');
     return;
   }
 
@@ -877,7 +877,7 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
   // PIPELINE ASÍNCRONO DE PROCESAMIENTO (FASE 5)
   // INSTRUMENTADO CON PERFORMANCE.NOW() Y MEDIDOR DE LONG TASKS
   // ==========================================
-  console.log('[APTKI] === INICIO PIPELINE DASHBOARD ===');
+  console.log('[FinTriage] === INICIO PIPELINE DASHBOARD ===');
   const tTotalStart = performance.now();
   const tClick = performance.now();
   
@@ -896,13 +896,13 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
 
   const tShowLoader = performance.now();
   const stepADuration = tShowLoader - tClick;
-  console.log(`[APTKI] [Paso A] Show Loader completado en ${stepADuration.toFixed(2)}ms`);
+  console.log(`[FinTriage] [Paso A] Show Loader completado en ${stepADuration.toFixed(2)}ms`);
 
   // Esperar a que el navegador complete el pintado inicial del cargador y deshabilitado del botón
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       const tDelay = performance.now();
-      console.log(`[APTKI] Delay para repintado DOM del loader: ${(tDelay - tShowLoader).toFixed(2)}ms`);
+      console.log(`[FinTriage] Delay para repintado DOM del loader: ${(tDelay - tShowLoader).toFixed(2)}ms`);
 
       // Paso B: Análisis Core Principal
       if (msg) msg.textContent = 'Analizando libro contable y auditoría de anomalías...';
@@ -920,7 +920,7 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
           );
           tCoreEnd = performance.now();
         } catch (errCore) {
-          console.error('[APTKI] Error fatal en analyzeLedger:', errCore);
+          console.error('[FinTriage] Error fatal en analyzeLedger:', errCore);
           logAudit('ERROR CRÍTICO', `analyzeLedger falló: ${errCore.message}`);
           showToast('⛔ Error crítico en el análisis contable. Revisa la consola.', 'error', 8000);
           
@@ -933,13 +933,13 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
 
         const coreDuration = tCoreEnd - tCoreStart;
         logAudit('Performance', `Paso B (analyzeLedger completo): ${coreDuration.toFixed(1)}ms`);
-        console.log(`[APTKI] [Paso B] analyzeLedger core completado en ${coreDuration.toFixed(2)}ms`);
+        console.log(`[FinTriage] [Paso B] analyzeLedger core completado en ${coreDuration.toFixed(2)}ms`);
         
         // Medición de Long Tasks (>50ms)
         if (coreDuration > 50) {
-          console.warn(`[APTKI] [LONG TASK] Paso B analyzeLedger tardó > 50ms: ${coreDuration.toFixed(2)}ms`);
+          console.warn(`[FinTriage] [LONG TASK] Paso B analyzeLedger tardó > 50ms: ${coreDuration.toFixed(2)}ms`);
           if (coreDuration > 200) {
-            console.warn(`[APTKI] [BLOQUEO GRAVE] Paso B tardó > 200ms: ${coreDuration.toFixed(2)}ms. Candidato a Web Worker.`);
+            console.warn(`[FinTriage] [BLOQUEO GRAVE] Paso B tardó > 200ms: ${coreDuration.toFixed(2)}ms. Candidato a Web Worker.`);
           }
         }
 
@@ -961,16 +961,16 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
             try {
               STATE.scoringResult = scoreFinanciacion(STATE.analysisResult, STATE.scoringInputs || {});
             } catch (errScoring) {
-              console.error('[APTKI] Error en scoreFinanciacion (degradación elegante):', errScoring);
+              console.error('[FinTriage] Error en scoreFinanciacion (degradación elegante):', errScoring);
               logAudit('DEGRADACIÓN', `scoreFinanciacion falló: ${errScoring.message}. Scoring no disponible.`);
               STATE.scoringResult = null;
             }
             const tScEnd = performance.now();
             const scDuration = tScEnd - tScStart;
             logAudit('Performance', `Paso C (scoreFinanciacion): ${scDuration.toFixed(1)}ms`);
-            console.log(`[APTKI] [Paso C] scoreFinanciacion completado en ${scDuration.toFixed(2)}ms`);
+            console.log(`[FinTriage] [Paso C] scoreFinanciacion completado en ${scDuration.toFixed(2)}ms`);
             if (scDuration > 50) {
-              console.warn(`[APTKI] [LONG TASK] Paso C scoreFinanciacion tardó > 50ms: ${scDuration.toFixed(2)}ms`);
+              console.warn(`[FinTriage] [LONG TASK] Paso C scoreFinanciacion tardó > 50ms: ${scDuration.toFixed(2)}ms`);
             }
 
             // Proceder a Paso D
@@ -996,16 +996,16 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
                 STATE.forecastResult = buildForecast(STATE.analysisResult, _getDefaultHyp());
               }
             } catch (errForecast) {
-              console.error('[APTKI] Error en buildForecast (degradación elegante):', errForecast);
+              console.error('[FinTriage] Error en buildForecast (degradación elegante):', errForecast);
               logAudit('DEGRADACIÓN', `buildForecast falló: ${errForecast.message}. Forecast no disponible.`);
               STATE.forecastResult = null;
             }
             const tFoEnd = performance.now();
             const foDuration = tFoEnd - tFoStart;
             logAudit('Performance', `Paso D (buildForecast): ${foDuration.toFixed(1)}ms`);
-            console.log(`[APTKI] [Paso D] buildForecast completado en ${foDuration.toFixed(2)}ms`);
+            console.log(`[FinTriage] [Paso D] buildForecast completado en ${foDuration.toFixed(2)}ms`);
             if (foDuration > 50) {
-              console.warn(`[APTKI] [LONG TASK] Paso D buildForecast tardó > 50ms: ${foDuration.toFixed(2)}ms`);
+              console.warn(`[FinTriage] [LONG TASK] Paso D buildForecast tardó > 50ms: ${foDuration.toFixed(2)}ms`);
             }
 
             // Proceder a Paso E
@@ -1032,10 +1032,10 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
             const cacheDuration = tCacheEnd - tCacheStart;
             
             logAudit('Performance', `Paso E (buildMonthlyAnalysisCache): ${cacheDuration.toFixed(1)}ms`);
-            console.log(`[APTKI] [Paso E] buildMonthlyAnalysisCache completado en ${cacheDuration.toFixed(2)}ms`);
+            console.log(`[FinTriage] [Paso E] buildMonthlyAnalysisCache completado en ${cacheDuration.toFixed(2)}ms`);
             
             if (cacheDuration > 50) {
-              console.warn(`[APTKI] [LONG TASK] Paso E buildMonthlyAnalysisCache tardó > 50ms: ${cacheDuration.toFixed(2)}ms`);
+              console.warn(`[FinTriage] [LONG TASK] Paso E buildMonthlyAnalysisCache tardó > 50ms: ${cacheDuration.toFixed(2)}ms`);
             }
 
             // Actualizar resumen visual del Paso 1
@@ -1053,11 +1053,11 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
             navigate('dashboard', () => {
               const tNavEnd = performance.now();
               const navDuration = tNavEnd - tNavStart;
-              console.log(`[APTKI] [Paso E - Navegación/Render] navigate('dashboard') + renderDashboard completo en ${navDuration.toFixed(2)}ms`);
+              console.log(`[FinTriage] [Paso E - Navegación/Render] navigate('dashboard') + renderDashboard completo en ${navDuration.toFixed(2)}ms`);
               if (navDuration > 50) {
-                console.warn(`[APTKI] [LONG TASK] Navegación/Render Dashboard tardó > 50ms: ${navDuration.toFixed(2)}ms`);
+                console.warn(`[FinTriage] [LONG TASK] Navegación/Render Dashboard tardó > 50ms: ${navDuration.toFixed(2)}ms`);
                 if (navDuration > 100) {
-                  console.warn(`[APTKI] [BLOQUEO GRAVE] El pintado del dashboard bloqueó > 100ms: ${navDuration.toFixed(2)}ms`);
+                  console.warn(`[FinTriage] [BLOQUEO GRAVE] El pintado del dashboard bloqueó > 100ms: ${navDuration.toFixed(2)}ms`);
                 }
               }
 
@@ -1095,8 +1095,8 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
             const tTotalEnd = performance.now();
             const cleanupDuration = tTotalEnd - tTotalStart;
             logAudit('Performance', `Generación completa Dashboard: ${cleanupDuration.toFixed(1)}ms`);
-            console.log(`[APTKI] Dashboard generado en ${cleanupDuration.toFixed(2)}ms (Caché Mensual: ${cacheDuration.toFixed(2)}ms)`);
-            console.log('[APTKI] === FIN PIPELINE DASHBOARD ===');
+            console.log(`[FinTriage] Dashboard generado en ${cleanupDuration.toFixed(2)}ms (Caché Mensual: ${cacheDuration.toFixed(2)}ms)`);
+            console.log('[FinTriage] === FIN PIPELINE DASHBOARD ===');
           });
         };
 
@@ -1344,19 +1344,19 @@ function renderDashboard(onComplete) {
   const confidence = data.confidence || {};
 
   const tRenderStart = performance.now();
-  console.log('[APTKI] --- INICIO RENDER DASHBOARD ---');
+  console.log('[FinTriage] --- INICIO RENDER DASHBOARD ---');
 
   // 1. Evitar regeneración redundante de caché mensual
   if (!monthlyAnalysisCache) {
     const tSubCacheStart = performance.now();
     monthlyAnalysisCache = buildMonthlyAnalysisCache(data);
     const tSubCacheEnd = performance.now();
-    console.log(`[APTKI] [Render] buildMonthlyAnalysisCache (CÁLCULO REAL): ${(tSubCacheEnd - tSubCacheStart).toFixed(2)}ms`);
+    console.log(`[FinTriage] [Render] buildMonthlyAnalysisCache (CÁLCULO REAL): ${(tSubCacheEnd - tSubCacheStart).toFixed(2)}ms`);
     if ((tSubCacheEnd - tSubCacheStart) > 50) {
-      console.warn(`[APTKI] [LONG TASK] buildMonthlyAnalysisCache secundario tardó > 50ms: ${(tSubCacheEnd - tSubCacheStart).toFixed(2)}ms`);
+      console.warn(`[FinTriage] [LONG TASK] buildMonthlyAnalysisCache secundario tardó > 50ms: ${(tSubCacheEnd - tSubCacheStart).toFixed(2)}ms`);
     }
   } else {
-    console.log('[APTKI] [Render] buildMonthlyAnalysisCache EVITADO (uso de caché existente)');
+    console.log('[FinTriage] [Render] buildMonthlyAnalysisCache EVITADO (uso de caché existente)');
   }
 
   // 2. Banner de Confianza
@@ -1465,7 +1465,7 @@ function renderDashboard(onComplete) {
   }
 
   const tKpis1 = performance.now();
-  console.log(`[APTKI] [Render] KPIs pintados síncronamente en ${(tKpis1 - tKpis0).toFixed(2)}ms`);
+  console.log(`[FinTriage] [Render] KPIs pintados síncronamente en ${(tKpis1 - tKpis0).toFixed(2)}ms`);
 
   // 4. Renderizado Progresivo Asíncrono de Elementos Gráficos Pesados
   // Colocamos spinners temporales elegantes mientras se programan los pintados progresivos
@@ -1491,9 +1491,9 @@ function renderDashboard(onComplete) {
     renderDivergingEbitdaChart('ebitda-chart-container', data, 'ui');
     const tF1_1 = performance.now();
     const f1Dur = tF1_1 - tF1_0;
-    console.log(`[APTKI] [Render Progresivo] Frame 1 (Waterfall & EBITDA) en ${f1Dur.toFixed(2)}ms`);
+    console.log(`[FinTriage] [Render Progresivo] Frame 1 (Waterfall & EBITDA) en ${f1Dur.toFixed(2)}ms`);
     if (f1Dur > 50) {
-      console.warn(`[APTKI] [LONG TASK] Frame 1 de renderizado tardó > 50ms: ${f1Dur.toFixed(2)}ms`);
+      console.warn(`[FinTriage] [LONG TASK] Frame 1 de renderizado tardó > 50ms: ${f1Dur.toFixed(2)}ms`);
     }
 
     // Frame 2: Gráficos secundarios (Runway/Burn y Revenues/Expenses)
@@ -1503,9 +1503,9 @@ function renderDashboard(onComplete) {
       renderRevenuesExpensesChart('revenues-expenses-container', data, 'ui');
       const tF2_1 = performance.now();
       const f2Dur = tF2_1 - tF2_0;
-      console.log(`[APTKI] [Render Progresivo] Frame 2 (Runway & Revenues) en ${f2Dur.toFixed(2)}ms`);
+      console.log(`[FinTriage] [Render Progresivo] Frame 2 (Runway & Revenues) en ${f2Dur.toFixed(2)}ms`);
       if (f2Dur > 50) {
-        console.warn(`[APTKI] [LONG TASK] Frame 2 de renderizado tardó > 50ms: ${f2Dur.toFixed(2)}ms`);
+        console.warn(`[FinTriage] [LONG TASK] Frame 2 de renderizado tardó > 50ms: ${f2Dur.toFixed(2)}ms`);
       }
 
       // Frame 3: Resumen Ejecutivo / Argumentario Narrativo
@@ -1514,9 +1514,9 @@ function renderDashboard(onComplete) {
         if (typeof renderNarrative === 'function') renderNarrative();
         const tF3_1 = performance.now();
         const f3Dur = tF3_1 - tF3_0;
-        console.log(`[APTKI] [Render Progresivo] Frame 3 (Narrative) en ${f3Dur.toFixed(2)}ms`);
+        console.log(`[FinTriage] [Render Progresivo] Frame 3 (Narrative) en ${f3Dur.toFixed(2)}ms`);
         if (f3Dur > 50) {
-          console.warn(`[APTKI] [LONG TASK] Frame 3 de renderizado tardó > 50ms: ${f3Dur.toFixed(2)}ms`);
+          console.warn(`[FinTriage] [LONG TASK] Frame 3 de renderizado tardó > 50ms: ${f3Dur.toFixed(2)}ms`);
         }
 
         // Frame 4: Tabla PyG Mensual
@@ -1525,13 +1525,13 @@ function renderDashboard(onComplete) {
           renderPyG(data.pygMensual);
           const tF4_1 = performance.now();
           const f4Dur = tF4_1 - tF4_0;
-          console.log(`[APTKI] [Render Progresivo] Frame 4 (PyG) en ${f4Dur.toFixed(2)}ms`);
+          console.log(`[FinTriage] [Render Progresivo] Frame 4 (PyG) en ${f4Dur.toFixed(2)}ms`);
           if (f4Dur > 50) {
-            console.warn(`[APTKI] [LONG TASK] Frame 4 de renderizado tardó > 50ms: ${f4Dur.toFixed(2)}ms`);
+            console.warn(`[FinTriage] [LONG TASK] Frame 4 de renderizado tardó > 50ms: ${f4Dur.toFixed(2)}ms`);
           }
 
           const tRenderEnd = performance.now();
-          console.log(`[APTKI] [Render Completo] Total renderizado progresivo: ${(tRenderEnd - tRenderStart).toFixed(2)}ms`);
+          console.log(`[FinTriage] [Render Completo] Total renderizado progresivo: ${(tRenderEnd - tRenderStart).toFixed(2)}ms`);
           
           if (typeof onComplete === 'function') {
             onComplete();

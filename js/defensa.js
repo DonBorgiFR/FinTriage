@@ -396,7 +396,7 @@ function exportFounderReport(data, simulated = false) {
 
   let txt = `## 📄 Informe de Diagnóstico y Plan de Choque Financiero
 **Preparado para:** ${empresa} (${sector})
-**Consultor Senior de Cabecera:** ${consultor}
+**Asesor/CFO de Cabecera:** ${consultor}
 **Fecha de Diagnóstico:** ${new Date().toLocaleDateString('es-ES')}
 **Tipo de Análisis:** ${simulated ? 'Simulación Rápida de Reunión' : 'Análisis Basado en Libro Diario Contable (PGC)'}
 
@@ -433,13 +433,13 @@ ${plan.map((p, i) => `* [ ] **Fase: ${p.phase}**
 
 ---
 
-### 4. Siguientes Pasos con el Equipo APTKI
+### 4. Siguientes Pasos de Mitigación Operativa
 
 Para ejecutar este plan con éxito y reestructurar tu pool financiero (bancos, factoring, ENISA/subvenciones), te propongo:
 1. **Reunión técnica de 30-45 minutos** con tu equipo contable para conciliar facturas y liberar los saldos de clientes acumulados.
 2. **Definir el argumentario defensivo** basado en nuestro motor financiero para proteger tu EBITDA normalizado ante futuros comités de riesgo.
 
-*¡Con foco y el método APTKI ordenaremos el caos y le daremos estabilidad a tu startup!*
+*¡Con foco y orden contable daremos estabilidad a tu startup!*
 `;
   return txt;
 }

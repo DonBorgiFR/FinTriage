@@ -1,4 +1,4 @@
-# 💾 APTKI Workstation - Estado de Guardado (Handoff)
+# 💾 FinTriage - Estado de Guardado (Handoff)
 
 ## 1. Estado Actual (State of the Union)
 - **Consolidación del Core Analítico:** La Workstation es plenamente funcional, capaz de procesar un libro diario (PGC), clasificar cuentas, aplicar ajustes de devengo, y generar un dashboard financiero completo in-browser con arquitectura SPA.
@@ -32,17 +32,17 @@
 
 ## 3. Archivos Clave Modificados Recientemente
 ## 3. Fase 8: Módulo de Cartera (Priorización y Routing)
-- **Dashboard de Cartera Multicompañía:** Vista agregada para gestionar 3 o 4 startups simultáneamente en estado vivo mediante importación individual o por lotes de archivos `.aptki`.
+- **Dashboard de Cartera Multicompañía:** Vista agregada para gestionar 3 o 4 startups simultáneamente en estado vivo mediante importación individual o por lotes de archivos `.fintriage`.
 - **Clasificador de Gravedad y Urgencias:** Semáforo de urgencia de caja y balance cruzando runway, anomalías críticas de Due Diligence, y nivel de conciliación contable en un Score determinista (0-100).
 - **Clasificador de Focos Operativos:** Determina si el problema principal radica en Caja (Runway), Circulante (DSO/DPO), Costes, Financiabilidad, Deuda Pública (Hacienda/SS) o "Materiales y caso financiero" (sustituyendo el concepto abstracto de "Narrativa").
 - **Routing de Equipos en 3 Niveles:** Diagnóstico tridimensional que desglosa Foco Principal ──> Bloqueador Previo Activo (Trust contable, Hacienda/SS, Socios/DD) ──> Ruta Sugerida Final (CFO, Gestoría, Fin. Bancaria, Fin. Pública, Fundraising).
-- **Persistencia Consolidada Compatible:** Soporte de persistencia en `.aptki` con formato `"mode": "portfolio"` que unifica en memoria toda la cartera y permite exportar e importar de forma consolidada, manteniendo la retrocompatibilidad absoluta con sesiones individuales.
+- **Persistencia Consolidada Compatible:** Soporte de persistencia en `.fintriage` con formato `"mode": "portfolio"` que unifica en memoria toda la cartera y permite exportar e importar de forma consolidada, manteniendo la retrocompatibilidad absoluta con sesiones individuales.
 
 ## 4. Archivos Clave Modificados/Creados
 - `index.html`: Estructura SPA y UI general. Agregado botón de navegación y la sección `#section-cartera` que aloja la dropzone de carga en lote, tarjetas de KPIs, tabla ejecutiva de control y bloque de Handoff Express.
 - `js/app.js`: Orquestador principal (navegación, alertas reactivas y parpadeo de runway). Integrada la navegación condicional para la pestaña de Cartera.
 - `js/defensa.js`: El núcleo de inteligencia de supervivencia, cálculo real robusto de DSO/DPO, leaks, talking points, plan de choque interactivo y fallback universal de portapapeles.
-- `js/session.js`: Persistencia automática del plan de choque interactivo y simulaciones de caja rápida en el archivo de sesión `.aptki`. Reescritas las funciones de guardado y carga para actuar de forma dual (single vs portfolio), con batch drag-and-drop e importadores dedicados.
+- `js/session.js`: Persistencia automática del plan de choque interactivo y simulaciones de caja rápida en el archivo de sesión `.fintriage`. Reescritas las funciones de guardado y carga para actuar de forma dual (single vs portfolio), con batch drag-and-drop e importadores dedicados.
 - `js/store.js`: Definición de estados globales reactivos. Extendidas las claves reactivas `cartera`, `carteraActiveStartup` y `carteraMode` en el Proxy profundo de estado.
 - `js/cartera.js`: **Creado desde cero.** Contiene el motor lógico determinista de triage, cálculo de elegibilidad ENISA, renderizadores de DOM dinámicos, ficha de handoff express y fallback de copiado robusto.
 - `css/index.css`: Inyectados estilos para badges sutiles HSL, dropzones interactivas y efectos de selección en la tabla.
@@ -50,7 +50,7 @@
 ## 5. 🔑 Golden Prompt de Reenganche
 
 ```markdown
-Hola, Antigravity. Retomamos el proyecto APTKI Workstation asumiendo el rol de Design Lead y Full-Stack Engineer experto en SPA sin frameworks.
+Hola, Antigravity. Retomamos el proyecto FinTriage asumiendo el rol de Design Lead y Full-Stack Engineer experto en SPA sin frameworks.
 
 ### CONTEXTO DEL PROYECTO
 La workstation está en un estado excelente de robustez y madurez operativa. El Módulo de Cartera (Fase 8) se encuentra plenamente integrado en el ecosistema, permitiendo un control unificado y determinista de múltiples startups, routing por equipos (CFO, Gestoría, Financiación Bancaria/Pública, Fundraising), bloqueadores cruzados y ficha de handoff express con copiado seguro.

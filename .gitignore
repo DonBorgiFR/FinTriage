@@ -9,6 +9,7 @@ Thumbs.db
 *.swp
 
 # Archivos de sesión temporales
+*.fintriage
 *.aptki
 
 # IDE
