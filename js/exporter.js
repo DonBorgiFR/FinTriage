@@ -104,7 +104,7 @@ ${defensa || 'No se han generado alegaciones de defensa.'}
         // 4. Configurar opciones de html2pdf
         const opt = {
           margin:       0,
-          filename:     `${empresa}_fintriage_report.pdf`.replace(/[^a-z0-9]/gi, '_').toLowerCase(),
+          filename:     `${empresa.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_fintriage_report.pdf`,
           image:        { type: 'jpeg', quality: 0.98 },
           html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
           jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -172,7 +172,8 @@ function exportToExcel(data, forecast, scoring) {
     XLSX.utils.book_append_sheet(wb, wsConf, "Calidad del Dato");
 
     // Exportar
-    const fileName = `${STATE.empresa.nombre || 'modelo'}_financiero_fintriage.xlsx`.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const safeName = (STATE.empresa.nombre || 'modelo').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const fileName = `${safeName}_financiero_fintriage.xlsx`;
     XLSX.writeFile(wb, fileName);
     showToast('Excel Exportado ✓', 'success');
 
