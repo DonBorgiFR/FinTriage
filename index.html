@@ -51,31 +51,39 @@
   <!-- NAV -->
   <nav class="nav" role="navigation">
     <button class="nav-item active" data-section="carga" id="nav-carga">
-      <span class="nav-icon">📂</span> Cargar Libro
+      <span class="nav-icon">
+        <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+      </span> Cargar Libro
     </button>
     <button class="nav-item" data-section="dashboard" id="nav-dashboard">
-      <span class="nav-icon">📊</span> Dashboard
-    </button>
-    <button class="nav-item" data-section="checklist" id="nav-checklist">
-      <span class="nav-icon">✅</span> Filtro Día 1
+      <span class="nav-icon">
+        <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+      </span> Dashboard
     </button>
     <button class="nav-item" data-section="scoring" id="nav-scoring">
-      <span class="nav-icon">🏅</span> Scoring Público
+      <span class="nav-icon">
+        <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
+      </span> Scoring Público
     </button>
     <button class="nav-item" data-section="forecast" id="nav-forecast">
-      <span class="nav-icon">📈</span> Forecast 12M
+      <span class="nav-icon">
+        <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+      </span> Forecast 12M
     </button>
     <button class="nav-item" data-section="financiacion" id="nav-financiacion">
-      <span class="nav-icon">💰</span> Financiación
+      <span class="nav-icon">
+        <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+      </span> Financiación
     </button>
     <button class="nav-item" data-section="defensa" id="nav-defensa">
-      <span class="nav-icon">🛡️</span> Defensa
-    </button>
-    <button class="nav-item" data-section="cartera" id="nav-cartera">
-      <span class="nav-icon">💼</span> Cartera
+      <span class="nav-icon">
+        <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+      </span> Defensa
     </button>
     <button class="nav-item" data-section="creador" id="nav-creador">
-      <span class="nav-icon">👨‍💻</span> Creador
+      <span class="nav-icon">
+        <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6M12 4.5l-2.5 15"></path></svg>
+      </span> Creador
     </button>
   </nav>
 
@@ -103,8 +111,8 @@
       </div>
 
       <!-- PERFIL SELECTOR -->
-      <div class="profile-selector" id="profile-selector">
-        <h3>Selecciona el perfil de empresa</h3>
+      <div class="profile-selector" id="profile-selector" style="display:none; margin-top:24px;">
+        <h3>Perfil de Empresa (Define los KPIs específicos)</h3>
         <div class="profile-grid" id="profile-grid">
           <!-- Renderizado por JS -->
         </div>
@@ -114,11 +122,11 @@
       <div class="empresa-form" id="empresa-form">
         <div class="form-group">
           <label for="input-empresa-nombre">Nombre empresa</label>
-          <input type="text" id="input-empresa-nombre" placeholder="Ej: FlowMetrics S.L." />
+          <input type="text" id="input-empresa-nombre" placeholder="Ej: Mi Empresa S.L." />
         </div>
         <div class="form-group">
           <label for="input-empresa-sector">Sector</label>
-          <input type="text" id="input-empresa-sector" placeholder="Ej: SaaS B2B" />
+          <input type="text" id="input-empresa-sector" placeholder="Ej: SaaS / Tech" />
         </div>
         <div class="form-group">
           <label for="input-empresa-empleados">Nº Empleados</label>
@@ -412,10 +420,19 @@
         <div style="display: flex; gap: 24px; margin-bottom: 24px; align-items: stretch; flex-wrap: wrap;">
           
           <!-- Trust Score Card -->
-          <div class="card" style="flex: 1; min-width: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; margin: 0;">
-            <div style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Trust Score</div>
-            <div id="trust-score-value" style="font-size: 3.5rem; font-weight: 800; font-family: var(--font-display); line-height: 1;">--</div>
-            <div id="trust-score-status" style="font-size: 1rem; margin-top: 8px; font-weight: 600;">Evaluando...</div>
+          <div class="card" style="flex: 1; min-width: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; margin: 0; padding: 24px;">
+            <div style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 20px;">Trust Score</div>
+            <div style="position: relative; width: 140px; height: 140px; margin: 0 auto;">
+              <svg viewBox="0 0 36 36" style="width: 140px; height: 140px; transform: rotate(-90deg);">
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="2.5"/>
+                <circle id="trust-score-circle" cx="18" cy="18" r="15.9" fill="none" stroke="var(--cyan)" stroke-width="2.5"
+                  stroke-dasharray="0 100" stroke-linecap="round" style="transition: stroke-dasharray 0.8s ease, stroke 0.8s ease;"/>
+              </svg>
+              <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <span id="trust-score-value" style="font-size: 3.2rem; font-weight: 800; font-family: var(--font-display); line-height: 1;">--</span>
+                <span id="trust-score-status" style="font-size: 0.85rem; margin-top: 4px; font-weight: 600;">Evaluando...</span>
+              </div>
+            </div>
           </div>
 
           <!-- Audit Trail / Session Log -->
@@ -479,33 +496,6 @@
       </div>
     </section>
 
-    <!-- ========== SECCIÓN: CHECKLIST ========== -->
-    <section class="section" id="section-checklist">
-      <div class="page-header">
-        <h1>Filtro Día 1</h1>
-        <p>Framework de evaluación de calidad para el trabajo de CFO Interino. Marca los criterios completados.</p>
-      </div>
-      <div id="checklist-root"><!-- Renderizado por checklist.js --></div>
-
-      <!-- Biblioteca de Reglas de Anomalía -->
-      <div class="card" style="margin-top:32px;">
-        <div class="card-title">📖 Biblioteca de Reglas de Anomalía (Motor Declarativo)</div>
-        <p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:16px;">El motor de detección ejecuta estas reglas automáticamente tras cada análisis. Cada regla es un componente independiente y extensible.</p>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Regla</th>
-                <th>Severidad</th>
-                <th>Descripción</th>
-              </tr>
-            </thead>
-            <tbody id="rules-library-body"><!-- Rendered by app.js --></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
 
     <!-- ========== SECCIÓN: SCORING PÚBLICO ========== -->
     <section class="section" id="section-scoring">
@@ -543,90 +533,6 @@
       <div id="defensa-root"><!-- Renderizado por defensa.js --></div>
     </section>
 
-    <!-- ========== SECCIÓN: CARTERA ========== -->
-    <section class="section" id="section-cartera">
-      <div class="page-header">
-        <h1>💼 Control de Cartera Multicompañía</h1>
-        <p>Priorización operativa y routing de startups. Importa múltiples sesiones <strong>.fintriage</strong> para triage instantáneo.</p>
-      </div>
-
-      <!-- PANEL ACCIONES CARTERA -->
-      <div class="card" style="margin-bottom: 24px;">
-        <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 250px;">
-            <div class="dropzone-mini" id="cartera-dropzone" style="border: 2px dashed var(--border); border-radius: 8px; padding: 16px; text-align: center; background: rgba(255,255,255,0.02); cursor: pointer;" role="button" tabindex="0" aria-label="Dropzone mini para cartera">
-              <span style="font-size: 1.5rem; display: block; margin-bottom: 4px;">⬆️</span>
-              <span style="font-size: 0.85rem; font-weight: bold; color: var(--text-primary);">Cargar en lote (.fintriage)</span>
-              <span style="font-size: 0.75rem; display: block; color: var(--text-secondary); margin-top: 2px;">Arrastra o haz click para subir varias sesiones</span>
-              <input type="file" id="cartera-file-input" accept=".fintriage,.aptki,.json" multiple style="display: none;" />
-            </div>
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <button class="btn btn-primary" id="btn-export-cartera" style="padding: 10px 20px; font-size: 0.9rem;">
-              💾 Exportar Cartera (.fintriage)
-            </button>
-            <button class="btn btn-secondary" id="btn-limpiar-cartera" style="padding: 6px 12px; font-size: 0.8rem; border-color: rgba(255,50,50,0.3); color: rgba(255,100,100,0.9);">
-              🗑️ Limpiar Cartera
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- MINI KPIS CARTERA -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
-        <div class="card" style="padding: 16px; text-align: center;">
-          <div style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Caja Total Cartera</div>
-          <div style="font-size: 1.8rem; font-weight: bold; color: var(--green); margin-top: 4px;" id="cartera-kpi-caja">0 €</div>
-        </div>
-        <div class="card" style="padding: 16px; text-align: center;">
-          <div style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Startups en Alerta Roja</div>
-          <div style="font-size: 1.8rem; font-weight: bold; color: var(--red); margin-top: 4px;" id="cartera-kpi-rojo">0</div>
-        </div>
-        <div class="card" style="padding: 16px; text-align: center;">
-          <div style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Total Startups Cargadas</div>
-          <div style="font-size: 1.8rem; font-weight: bold; color: var(--purple); margin-top: 4px;" id="cartera-kpi-total">0</div>
-        </div>
-      </div>
-
-      <!-- TABLA DE CARTERA -->
-      <div class="card">
-        <div class="card-title">📋 Grilla de Triage & Routing de Startups</div>
-        <div class="table-wrap" style="margin-top: 12px;">
-          <table id="cartera-table">
-            <thead>
-              <tr>
-                <th>Startup</th>
-                <th style="text-align: center;">Runway</th>
-                <th style="text-align: center;">Trust Score</th>
-                <th>Foco Principal</th>
-                <th>Ruta Sugerida</th>
-                <th>Siguiente Acción Táctica</th>
-                <th style="text-align: right;">Acción</th>
-              </tr>
-            </thead>
-            <tbody id="cartera-table-body">
-              <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 32px 0;">
-                  No hay startups en la cartera contable. Arrastra archivos <strong>.fintriage</strong> o <strong>.aptki</strong> para rellenar el triage.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- FICHA HANDOFF EXPRESS -->
-      <div class="card" id="cartera-handoff-card" style="margin-top: 24px; display: none;">
-        <div class="card-title">📝 Ficha Handoff Express (Copiar y Pegar Tarea)</div>
-        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px;">Se genera una derivación ejecutiva directa para copiar a Slack, Email o Trello de un solo click.</p>
-        <div style="position: relative;">
-          <textarea id="cartera-handoff-textarea" readonly style="width: 100%; height: 80px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 6px; padding: 12px; color: var(--text-primary); font-family: monospace; font-size: 0.85rem; resize: none;"></textarea>
-          <button class="btn btn-primary" id="btn-copiar-handoff-cartera" style="position: absolute; right: 12px; bottom: 12px; padding: 6px 12px; font-size: 0.8rem;">
-            📋 Copiar Ficha
-          </button>
-        </div>
-      </div>
-    </section>
 
     <!-- ========== SECCIÓN: CREADOR ========== -->
     <section class="section" id="section-creador">
@@ -787,7 +693,6 @@
 <script src="js/profiles.js"></script>
 <script src="js/parser.js"></script>
 <script src="js/analyzer.js"></script>
-<script src="js/checklist.js"></script>
 <script src="js/knowledge.js"></script>
 <script src="js/scorer.js"></script>
 <script src="js/forecaster.js"></script>
@@ -796,7 +701,6 @@
 <script src="js/narrative.js"></script>
 <script src="js/store.js"></script>
 <script src="js/defensa.js"></script>
-<script src="js/cartera.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

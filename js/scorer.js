@@ -257,7 +257,6 @@ function renderScorer() {
     try {
       STATE.scoringResult = scoreFinanciacion(STATE.analysisResult, STATE.scoringInputs);
       document.getElementById('scoring-results').innerHTML = _buildScoringHTML();
-      if (typeof renderChecklist === 'function') renderChecklist();
       showToast('Scoring actualizado ✓', 'success');
     } catch (e) {
       console.error('[FinTriage] Error recalcular scoring:', e);

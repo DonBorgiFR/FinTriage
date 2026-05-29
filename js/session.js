@@ -5,15 +5,9 @@
 
 /**
  * exportSession()
- * @description Empaqueta el estado de la aplicación. Si STATE.carteraMode está activo,
- * genera una sesión de cartera unificada. Si está en modo individual, genera una sesión estándar.
+ * @description Empaqueta el estado de la aplicación y genera una sesión estándar de empresa única.
  */
 function exportSession() {
-  if (STATE.carteraMode) {
-    exportPortfolioSession();
-    return;
-  }
-
   if (!STATE.analysisResult && !STATE.parsedLedger) {
     showToast('No hay datos para guardar', 'error');
     return;
@@ -35,7 +29,9 @@ function exportSession() {
     contextChecklist: STATE.contextChecklist || null,
     auditTrail: STATE.auditTrail,
     defensaPlanChoqueChecked: STATE.defensaPlanChoqueChecked || [],
-    defensaSimulacionInputs: STATE.defensaSimulacionInputs || null
+    defensaSimulacionInputs: STATE.defensaSimulacionInputs || null,
+    defensaIntensidad: STATE.defensaIntensidad || 'defensivo',
+    defensaPrioridades: STATE.defensaPrioridades || ['reduccion_opex', 'agilizar_cobros']
   };
 
   const dataStr = JSON.stringify(sessionData);
@@ -57,44 +53,6 @@ function exportSession() {
 }
 
 /**
- * exportPortfolioSession()
- * @description Exporta la lista completa de startups de la cartera en un único archivo consolidado .fintriage.
- */
-function exportPortfolioSession() {
-  if (!STATE.cartera || STATE.cartera.length === 0) {
-    showToast('No hay cartera activa para guardar', 'error');
-    return;
-  }
-
-  const portfolioData = {
-    version: '1.2',
-    timestamp: new Date().toISOString(),
-    mode: 'portfolio',
-    startups: STATE.cartera.map(st => ({
-      nombre: st.nombre,
-      arquetipo: st.arquetipo,
-      selectedProfileId: st.selectedProfileId,
-      sessionData: st.sessionData
-    }))
-  };
-
-  const dataStr = JSON.stringify(portfolioData);
-  const blob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `cartera_fintriage_${new Date().toISOString().slice(0, 10)}.fintriage`;
-  
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-
-  showToast('Cartera consolidada guardada ✓', 'success');
-}
-
-/**
  * importSession(file)
  * @description Lee un archivo `.fintriage` o `.aptki`, decodifica el JSON y determina de forma transparente
  * si es un archivo de cartera o de startup única, rehidratando la UI de manera correspondiente.
@@ -112,32 +70,8 @@ function importSession(file) {
       
       // Control de Modo de Carga
       if (data.mode === 'portfolio' || Array.isArray(data.startups)) {
-        // Carga en Modo Cartera
-        STATE.carteraMode = true;
-        STATE.cartera = data.startups.map(st => {
-          // Re-calcular triage para cada elemento al importar
-          const startupObj = {
-            nombre: st.nombre,
-            arquetipo: st.arquetipo || 'General',
-            selectedProfileId: st.selectedProfileId,
-            sessionData: st.sessionData
-          };
-          if (typeof evaluateStartupTriage === 'function') {
-            return evaluateStartupTriage(startupObj);
-          }
-          return startupObj;
-        });
-        
-        // Limpiamos la empresa activa del dashboard individual
-        clearActiveSingleSession();
-
-        showToast(`Cartera cargada con ${STATE.cartera.length} startups ✓`, 'success');
-        if (typeof navigate === 'function') navigate('cartera');
-        if (typeof renderCarteraTab === 'function') renderCarteraTab();
-        
+        showToast('El formato de cartera consolidada no está soportado en esta versión individual simplificada', 'error');
       } else {
-        // Carga en Modo Empresa Única Estándar
-        STATE.carteraMode = false;
         loadSingleSessionData(data, file.name);
       }
 
@@ -147,23 +81,6 @@ function importSession(file) {
     }
   };
   reader.readAsText(file);
-}
-
-/**
- * clearActiveSingleSession()
- * @description Limpia el estado individual activo de la workstation al pasar a modo cartera global.
- */
-function clearActiveSingleSession() {
-  STATE.parsedLedger = null;
-  STATE.analysisResult = null;
-  STATE.selectedProfile = null;
-  STATE.customMapping = null;
-  STATE.empresa = { nombre: '', sector: '', empleados: 0 };
-  STATE.scoringResult = null;
-  STATE.forecastResult = null;
-  
-  const badge = document.getElementById('empresa-badge');
-  if (badge) badge.textContent = 'Modo Cartera Multicompañía';
 }
 
 /**
@@ -182,6 +99,8 @@ function loadSingleSessionData(data, filename) {
   STATE.contextChecklist = data.contextChecklist || null;
   STATE.defensaPlanChoqueChecked = data.defensaPlanChoqueChecked || [];
   STATE.defensaSimulacionInputs = data.defensaSimulacionInputs || null;
+  STATE.defensaIntensidad = data.defensaIntensidad || 'defensivo';
+  STATE.defensaPrioridades = data.defensaPrioridades || ['reduccion_opex', 'agilizar_cobros'];
   
   if (typeof logAudit === 'function') logAudit('Sesión restaurada', `Desde archivo ${filename}`);
 
@@ -221,86 +140,13 @@ function loadSingleSessionData(data, filename) {
   }
 }
 
-/**
- * addSessionToCartera(file)
- * @description Procesa un archivo .fintriage o .aptki individual y lo agrega a la cartera activa en memoria,
- * re-evaluando su triage financiero.
- */
-function addSessionToCartera(file) {
-  return new Promise((resolve, reject) => {
-    if (!file.name.endsWith('.fintriage') && !file.name.endsWith('.aptki') && !file.name.endsWith('.json')) {
-      showToast('Formato no válido para cartera. Usa .fintriage', 'error');
-      resolve(null);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target.result);
-        
-        if (data.mode === 'portfolio') {
-          showToast('No puedes agregar una cartera consolidada a otra activa', 'error');
-          resolve(null);
-          return;
-        }
-
-        // Construir objeto provisional de startup
-        const startupObj = {
-          nombre: data.empresa?.nombre || file.name.replace('.fintriage', '').replace('.aptki', ''),
-          arquetipo: BUSINESS_PROFILES.find(p => p.id === data.selectedProfileId)?.name || 'General',
-          selectedProfileId: data.selectedProfileId,
-          sessionData: data
-        };
-
-        // Procesar triage
-        let evaluated = startupObj;
-        if (typeof evaluateStartupTriage === 'function') {
-          evaluated = evaluateStartupTriage(startupObj);
-        }
-
-        // Evitar duplicidades por nombre
-        STATE.cartera = STATE.cartera.filter(st => st.nombre !== evaluated.nombre);
-        STATE.cartera.push(evaluated);
-
-        resolve(evaluated);
-      } catch (err) {
-        console.error(err);
-        resolve(null);
-      }
-    };
-    reader.readAsText(file);
-  });
-}
-
-// Carga en lote de múltiples archivos en el modo cartera
-async function importMultipleSessionsInBatch(files) {
-  let count = 0;
-  for (const file of files) {
-    const res = await addSessionToCartera(file);
-    if (res) count++;
-  }
-  
-  if (count > 0) {
-    STATE.carteraMode = true;
-    clearActiveSingleSession();
-    showToast(`Se agregaron ${count} startups a la cartera ✓`, 'success');
-    if (typeof navigate === 'function') navigate('cartera');
-    if (typeof renderCarteraTab === 'function') renderCarteraTab();
-  }
-}
-
 // Escuchar cambios en un input oculto para cargar sesiones
 document.addEventListener('DOMContentLoaded', () => {
   const fileInput = document.getElementById('session-upload-input');
   if (fileInput) {
     fileInput.addEventListener('change', (e) => {
       if (e.target.files.length > 0) {
-        if (e.target.files.length === 1) {
-          importSession(e.target.files[0]);
-        } else {
-          importMultipleSessionsInBatch(Array.from(e.target.files));
-        }
+        importSession(e.target.files[0]);
       }
     });
   }

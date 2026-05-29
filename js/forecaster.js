@@ -313,7 +313,6 @@ function renderForecast() {
       eventos: FORECAST_HYP.eventos || []
     };
     STATE.forecastResult = buildForecast(STATE.analysisResult, FORECAST_HYP);
-    if (typeof renderChecklist === 'function') renderChecklist();
     renderForecast();
     showToast('Forecast actualizado ✓', 'success');
   });

@@ -45,7 +45,6 @@ class ReactiveStore {
       'analysisResult',
       'scoringResult',
       'forecastResult',
-      'cartera',
       'auditTrail'
     ]);
     return !NO_DEEP_PROXY_KEYS.has(rootKey);
@@ -180,9 +179,6 @@ const initialDataContract = {
   approvedAccruals: [],
   defensaPlanChoqueChecked: [],
   defensaSimulacionInputs: null,
-  cartera: [],
-  carteraActiveStartup: null,
-  carteraMode: false,
   _onboardingComplete: false,
   
   // Nodo de UI reactivo para Data Grids

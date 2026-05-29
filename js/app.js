@@ -181,7 +181,6 @@ function navigate(sectionId, onComplete) {
     if (sectionId === 'scoring') renderScorer();
     if (sectionId === 'forecast') renderForecast();
     if (sectionId === 'defensa') renderDefensa();
-    if (sectionId === 'cartera') renderCarteraTab();
     if (typeof onComplete === 'function') onComplete();
   }
 }
@@ -238,6 +237,7 @@ fileInput.addEventListener('change', (e) => {
  */
 function renderProfileGrid() {
   const grid = document.getElementById('profile-grid');
+  if (!grid) return;
   grid.innerHTML = BUSINESS_PROFILES.map(p => `
     <div class="profile-card" data-profile="${p.id}" role="button" tabindex="0" aria-label="Perfil ${p.name}">
       <span class="profile-icon">${p.icon}</span>
@@ -259,8 +259,11 @@ function selectProfile(profileId) {
   document.querySelectorAll('.profile-card').forEach(c => {
     c.classList.toggle('selected', c.dataset.profile === profileId);
   });
-  document.getElementById('empresa-form').style.display = 'flex';
-  document.getElementById('btn-analizar').disabled = false;
+  const empresaForm = document.getElementById('empresa-form');
+  if (empresaForm) empresaForm.style.display = 'flex';
+  
+  const btnAnalizar = document.getElementById('btn-analizar');
+  if (btnAnalizar) btnAnalizar.disabled = false;
 }
 
 // ---- Manejo de archivo ----
@@ -277,9 +280,13 @@ async function handleFile(file) {
     return;
   }
 
-  // Mostrar selector de perfil
-  document.getElementById('profile-selector').style.display = 'block';
+  // Mostrar el selector de perfil y renderizar las tarjetas
+  const profileSelector = document.getElementById('profile-selector');
+  if (profileSelector) profileSelector.style.display = 'block';
   renderProfileGrid();
+
+  // Auto-seleccionar perfil SaaS por defecto para agilizar y habilitar el botón Analizar
+  selectProfile('saas');
 
   // Reset
   document.getElementById('parse-progress').classList.remove('show');
@@ -296,7 +303,7 @@ async function handleFile(file) {
   const contextSec = document.getElementById('context-section');
   if (contextSec) contextSec.style.display = 'none';
 
-  showToast(`Archivo "${file.name}" listo. Selecciona el perfil de empresa.`, 'info');
+  showToast('Archivo cargado. Perfil SaaS/Tech seleccionado por defecto.', 'info');
 
   // Guardar archivo para cuando el usuario pulse Analizar
   STATE._pendingFile = file;
@@ -1716,7 +1723,7 @@ function renderWaterfall(data, mode = 'ui', customContainer = null) {
 
     if (mode === 'print') {
       container.innerHTML = `
-        <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:100%; max-height:100%; display:block; overflow:visible;">
+        <svg viewBox="0 0 ${W} ${H}" width="680" height="187" style="display:block; overflow:visible;">
           ${svgContent}
         </svg>
       `;
@@ -2019,7 +2026,7 @@ function renderDivergingEbitdaChart(containerId, data, mode = 'ui', customContai
 
     if (mode === 'print') {
       container.innerHTML = `
-        <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:100%; max-height:100%; display:block; overflow:visible;">
+        <svg viewBox="0 0 ${W} ${H}" width="680" height="221" style="display:block; overflow:visible;">
           ${svgContent}
         </svg>
       `;
@@ -2364,7 +2371,7 @@ function renderRunwayBurnChart(containerId, data, mode = 'ui', customContainer =
 
     if (mode === 'print') {
       container.innerHTML = `
-        <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:100%; max-height:100%; display:block; overflow:visible;">
+        <svg viewBox="0 0 ${W} ${H}" width="680" height="255" style="display:block; overflow:visible;">
           ${svgContent}
         </svg>
       `;
@@ -2448,9 +2455,10 @@ function generateContableTableFallback(data) {
 function renderTrustScore(confidence) {
   const el = document.getElementById('trust-score-value');
   const statusEl = document.getElementById('trust-score-status');
+  const circleEl = document.getElementById('trust-score-circle');
   if (!el || !statusEl) return;
 
-  const score = confidence.trustScore;
+  const score = confidence.trustScore || 0;
   const confLabel = confidence.confidenceLabel;
   const confLevel = confidence.confidenceLevel;
 
@@ -2465,6 +2473,13 @@ function renderTrustScore(confidence) {
   el.style.color = color;
   statusEl.textContent = confLabel || (score >= 80 ? 'Alta Fiabilidad' : score >= 50 ? 'Fiabilidad Media' : 'Baja Fiabilidad');
   statusEl.style.color = color;
+
+  if (circleEl) {
+    const circ = 2 * Math.PI * 15.9; // ~100
+    const dash = `${(score / 100) * circ} ${circ}`;
+    circleEl.style.strokeDasharray = dash;
+    circleEl.style.stroke = color;
+  }
 }
 
 // ---- Render: Audit Trail ----
@@ -2808,7 +2823,6 @@ renderDefensa();
 renderRulesLibrary();
 
 // Inicializar módulos si existen
-if (typeof renderChecklist === 'function') renderChecklist();
 if (typeof renderKnowledge === 'function') renderKnowledge();
 
 /**
@@ -3083,10 +3097,11 @@ function renderRevenuesExpensesChart(containerId, data, mode = 'ui', customConta
       });
 
       const svgStyle = renderMode === 'print'
-        ? 'width:100%; height:100%; max-height:100%; display:block; overflow:visible;'
+        ? 'display:block; overflow:visible;'
         : `width:100%;max-width:${W}px;display:block;overflow:visible;`;
+      const widthAttr = renderMode === 'print' ? 'width="680" height="221"' : '';
       return `
-        <svg viewBox="0 0 ${W} ${H}" style="${svgStyle}">
+        <svg viewBox="0 0 ${W} ${H}" ${widthAttr} style="${svgStyle}">
           ${svgContent}
         </svg>
       `;
@@ -3345,10 +3360,11 @@ function renderForecastFanChart(containerId, data, mode = 'ui', customContainer 
       });
 
       const svgStyle = renderMode === 'print'
-        ? 'width:100%; height:100%; max-height:100%; display:block; overflow:visible;'
+        ? 'display:block; overflow:visible;'
         : `width:100%;max-width:${W}px;display:block;overflow:visible;`;
+      const widthAttr = renderMode === 'print' ? 'width="680" height="221"' : '';
       return `
-        <svg viewBox="0 0 ${W} ${H}" style="${svgStyle}">
+        <svg viewBox="0 0 ${W} ${H}" ${widthAttr} style="${svgStyle}">
           ${svgContent}
         </svg>
       `;

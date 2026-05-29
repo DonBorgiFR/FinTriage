@@ -107,7 +107,8 @@ ${defensa || 'No se han generado alegaciones de defensa.'}
           filename:     `${empresa}_fintriage_report.pdf`.replace(/[^a-z0-9]/gi, '_').toLowerCase(),
           image:        { type: 'jpeg', quality: 0.98 },
           html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak:    { mode: ['css', 'legacy'], avoid: '.pdf-avoid-break' }
         };
         
         // 5. Exportar y limpiar/destruir el árbol temporal tras la exportación
@@ -760,7 +761,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
           <p style="font-size: 8px; color: #6b7280; margin-top: 0; margin-bottom: 8px;">
             Desglose acumulado desde los ingresos brutos hasta el EBITDA final del ejercicio contable, aislando el impacto de COGS, costes de personal y otros costes operativos fijos.
           </p>
-          <div id="pdf-waterfall-chart-container" style="width: 100%; height: 200px;"></div>
+          <div id="pdf-waterfall-chart-container" style="width: 100%; height: auto;"></div>
         </div>
 
         <div class="pdf-card pdf-avoid-break">
@@ -768,7 +769,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
           <p style="font-size: 8px; color: #6b7280; margin-top: 0; margin-bottom: 8px;">
             Seguimiento del EBITDA mes a mes. Las áreas atenuadas o sin color sólido en gráficos de barra representan periodos reales con sospechas de baja fiabilidad de datos. La zona a la derecha representa la proyección base.
           </p>
-          <div id="pdf-ebitda-chart-container" style="width: 100%; height: 200px;"></div>
+          <div id="pdf-ebitda-chart-container" style="width: 100%; height: auto;"></div>
         </div>
       </div>
 
@@ -795,7 +796,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
           <p style="font-size: 8px; color: #6b7280; margin-top: 0; margin-bottom: 8px;">
             Comparativa directa entre el remanente de caja disponible y la velocidad mensual de destrucción neta de tesorería, alineados al eje neutro común.
           </p>
-          <div id="pdf-runway-burn-chart-container" style="width: 100%; height: 200px;"></div>
+          <div id="pdf-runway-burn-chart-container" style="width: 100%; height: auto;"></div>
         </div>
 
         <div class="pdf-card pdf-avoid-break">
@@ -803,7 +804,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
           <p style="font-size: 8px; color: #6b7280; margin-top: 0; margin-bottom: 8px;">
             Contraste entre los ingresos brutos generados y los costes incurridos en cada mes del periodo analizado, indicando la senda de break-even mensual.
           </p>
-          <div id="pdf-revenues-expenses-chart-container" style="width: 100%; height: 200px;"></div>
+          <div id="pdf-revenues-expenses-chart-container" style="width: 100%; height: auto;"></div>
         </div>
       </div>
 
@@ -856,7 +857,7 @@ function preparePrintDOM(printContainer, data, forecast, scoring) {
           <p style="font-size: 8px; color: #6b7280; margin-top: 0; margin-bottom: 8px;">
             Proyección de caja acumulada a 12 meses vista a partir del último mes real. La banda atenuada representa el abanico probabilístico de sensibilidad financiera.
           </p>
-          <div id="pdf-forecast-fan-chart-container" style="width: 100%; height: 200px;"></div>
+          <div id="pdf-forecast-fan-chart-container" style="width: 100%; height: auto;"></div>
         </div>
 
         <div class="pdf-avoid-break">

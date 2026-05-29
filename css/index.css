@@ -160,7 +160,26 @@ body::after {
   color: var(--cyan);
   border-bottom-color: var(--cyan);
 }
-.nav-item .nav-icon { font-size: 1rem; }
+.nav-item .nav-icon {
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-svg-icon {
+  width: 16px;
+  height: 16px;
+  stroke: var(--text-secondary);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.nav-item:hover .nav-svg-icon {
+  stroke: var(--text-primary);
+  transform: scale(1.1);
+}
+.nav-item.active .nav-svg-icon {
+  stroke: var(--cyan);
+  filter: drop-shadow(0 0 5px rgba(0, 212, 255, 0.5));
+}
 
 /* ---- MAIN CONTENT ---- */
 .main { flex: 1; padding: 32px; max-width: 1400px; margin: 0 auto; width: 100%; }
@@ -1963,4 +1982,67 @@ tbody tr:hover td { background: var(--bg-card); color: var(--text-primary); }
   background: rgba(255,255,255,0.02);
   border: 1px solid var(--border);
   color: var(--text-muted);
+}
+
+/* ============================================
+   AUTODIAGNÓSTICO ESTRATÉGICO COCKPIT (DEFENSA)
+   ============================================ */
+.btn-diag-intensity {
+  text-align: left;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.01);
+  transition: var(--transition);
+  cursor: pointer;
+  color: var(--text-primary);
+  width: 100%;
+}
+
+.btn-diag-intensity:hover {
+  background: rgba(255,255,255,0.03);
+  border-color: var(--border-accent);
+}
+
+.btn-diag-intensity.active[data-intensity="moderado"] {
+  border-color: var(--cyan);
+  background: var(--cyan-glow);
+  box-shadow: 0 0 10px hsla(188, 70%, 54%, 0.15);
+}
+
+.btn-diag-intensity.active[data-intensity="defensivo"] {
+  border-color: var(--cyan);
+  background: var(--cyan-glow);
+  box-shadow: 0 0 10px hsla(188, 70%, 54%, 0.15);
+}
+
+.btn-diag-intensity.active[data-intensity="cremallera"] {
+  border-color: var(--red);
+  background: var(--red-dim);
+  box-shadow: 0 0 10px hsla(355, 85%, 62%, 0.15);
+}
+
+.palanca-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.palanca-checkbox-label:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: var(--border-accent);
+}
+
+.palanca-checkbox-label.active {
+  border-color: var(--cyan);
+  background: var(--cyan-glow);
 }

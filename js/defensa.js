@@ -190,67 +190,129 @@ function detectCashflowLeaks(data) {
  */
 function build100DayShockPlan(survival, leaks) {
   const plan = [];
+  const intensidad = STATE.defensaIntensidad || 'defensivo';
+  const palancas = STATE.defensaPrioridades || ['reduccion_opex', 'agilizar_cobros'];
 
-  // Tarea 1: Control de Caja
+  // --- FASE 1: DÍA 1-10: ESTABILIZACIÓN URGENTE ---
+  
+  // Tarea 1: Control Diario (Siempre presente)
   plan.push({
     id: 'caja_control',
     phase: 'Día 1-10: Estabilización Urgente',
-    title: 'Establecer conciliación bancaria y cashflow diario',
-    desc: 'Implementar una plantilla de control de caja diaria (entradas y salidas reales) vigilando los saldos bancarios cada mañana para evitar sorpresas.'
+    title: 'Auditoría e implantación de cashflow semanalizado',
+    desc: 'Realizar una conciliación diaria estricta en banco. Si la situación es crítica, el CFO y fundadores deben aprobar los pagos en un comité diario de caja cero.'
   });
 
-  // Tarea 2: Reducción de gastos discrecionales
-  if (survival.runwayMeses < 6) {
+  // Tarea 2: Reducción de Gastos (OPEX)
+  if (palancas.includes('reduccion_opex') || intensidad === 'cremallera' || survival.runwayMeses < 6) {
+    let title = 'Optimización presupuestaria base cero (OPEX)';
+    let desc = 'Suspender suscripciones duplicadas y pausar campañas de marketing no productivas (ROI negativo a 30 días).';
+    
+    if (intensidad === 'cremallera') {
+      title = '🔴 Plan Cremallera de Recorte Drástico (-30% Burn Rate)';
+      desc = 'Suspensión fulminante de nóminas no fundadoras ni comerciales, congelación absoluta de contrataciones y rescisión de licencias de software prescindibles de forma inmediata.';
+    } else if (intensidad === 'moderado') {
+      title = '🟢 Reducción de costes discrecionales inteligente';
+      desc = 'Revisar suscripciones SaaS infrautilizadas y renegociar contratos de servicios generales para ahorrar un 5-10% sin afectar la operativa de desarrollo.';
+    }
+    
     plan.push({
       id: 'gasto_discrecional',
       phase: 'Día 1-10: Estabilización Urgente',
-      title: 'Pausar gastos de marketing no productivos y herramientas SaaS',
-      desc: 'Suspender suscripciones de software duplicadas o inactivas y reducir temporalmente el presupuesto de branding/publicidad discrecional.'
+      title,
+      desc
     });
   }
 
-  // Tarea 3: Basada en Leaks específicos
-  leaks.forEach(leak => {
-    if (leak.id === 'dso_critico' || leak.id === 'desfase_circulante') {
-      plan.push({
-        id: 'cobros_emergencia',
-        phase: 'Día 11-30: Inyección de Liquidez',
-        title: 'Lanzar plan de recobro agresivo y factoraje',
-        desc: 'Contactar directamente con los clientes con facturas vencidas. Si es viable, activar líneas de factoring sobre cobros pendientes.'
-      });
+  // --- FASE 2: DÍA 11-30: INYECCIÓN DE LIQUIDEZ ---
+
+  // Tarea 3: Cobros y Circulante
+  if (palancas.includes('agilizar_cobros') || leaks.some(l => l.id === 'dso_critico' || l.id === 'desfase_circulante')) {
+    let title = 'Lanzar plan de recobro de facturas e implantar cobro upfront';
+    let desc = 'Contactar individualmente con clientes con facturas vencidas. Negociar contratos comerciales anuales con cobro al contado anticipado (upfront).';
+    
+    if (intensidad === 'cremallera') {
+      title = '⚠️ Campaña de Recobro Agresivo y Anticipación de Facturas';
+      desc = 'Ejecutar de inmediato líneas de factoring/descuento comercial sobre el 100% de la facturación pendiente. Ofrecer descuentos del 5-10% a clientes por pronto pago en 24h.';
     }
-    if (leak.id === 'prestamos_socios') {
-      plan.push({
-        id: 'socios_regulacion',
-        phase: 'Día 31-60: Saneamiento Balance',
-        title: 'Formalizar contrato de préstamos a socios',
-        desc: 'Firmar contrato civil de préstamo con interés legal para evitar incidencias en la Due Diligence y trazar la devolución de fondos.'
-      });
+    
+    plan.push({
+      id: 'cobros_emergencia',
+      phase: 'Día 11-30: Inyección de Liquidez',
+      title,
+      desc
+    });
+  }
+
+  // Tarea 4: Renegociación Deudas Financieras
+  if (intensidad === 'cremallera' || intensidad === 'defensivo' || leaks.some(l => l.id === 'deuda_publica_alta')) {
+    plan.push({
+      id: 'renegociacion_bancaria',
+      phase: 'Día 11-30: Inyección de Liquidez',
+      title: 'Negociar carencias y prórrogas de deudas vigentes',
+      desc: 'Solicitar formalmente a las entidades financieras (o ENISA si aplica) una carencia de amortización de principal (de 6 a 12 meses), reduciendo a mínimos las cuotas mensuales.'
+    });
+  }
+
+  // --- FASE 3: DÍA 31-60: SANEAMIENTO BALANCE ---
+
+  // Tarea 5: Ronda de Emergencia / Nota Convertible
+  if (palancas.includes('ronda_interna') || intensidad === 'cremallera') {
+    let title = 'Suscripción de Nota Convertible express con socios clave';
+    let desc = 'Estructurar un ticket puente rápido de nota convertible entre los actuales socios o business angels de máxima confianza por el equivalente a 3 meses de burn rate.';
+    
+    if (intensidad === 'cremallera') {
+      title = '🚨 Ampliación puente interna de urgencia';
+      desc = 'Convocar junta de socios urgente para aprobar una inyección rápida en cuenta 118 o nota convertible puente para evitar situación de insolvencia inminente.';
     }
-  });
+    
+    plan.push({
+      id: 'vias_alternativas',
+      phase: 'Día 31-60: Saneamiento Balance',
+      title,
+      desc
+    });
+  }
 
-  // Tarea 4: Renegociación con Bancos (si hay deudas)
-  plan.push({
-    id: 'renegociacion_bancaria',
-    phase: 'Día 11-30: Inyección de Liquidez',
-    title: 'Negociar carencias de préstamos financieros existentes',
-    desc: 'Solicitar a las entidades bancarias (o ENISA si ya se tiene) una carencia de amortización de principal de 6 a 12 meses, pagando solo intereses.'
-  });
+  // Tarea 6: Financiación Pública
+  if (palancas.includes('banca_publica')) {
+    plan.push({
+      id: 'financiacion_publica_shock',
+      phase: 'Día 31-60: Saneamiento Balance',
+      title: 'Acelerar solicitud de expediente ENISA / CDTI',
+      desc: 'Finalizar la memoria técnica del plan de negocio. Utilizar las alegaciones de defensa del Scorer para mitigar la debilidad de balance ante los analistas públicos.'
+    });
+  }
 
-  // Tarea 5: Vías alternativas rápidas
-  plan.push({
-    id: 'vias_alternativas',
-    phase: 'Día 31-60: Saneamiento Balance',
-    title: 'Preparación de Ronda de Emergencia o Nota Convertible',
-    desc: 'Lanzar un ticket de nota convertible rápido entre los socios actuales o business angels de confianza por importe equivalente a 3 meses de burn rate.'
-  });
+  // Tarea 7: Regularización Socios (Si existe leak)
+  if (leaks.some(l => l.id === 'prestamos_socios')) {
+    plan.push({
+      id: 'socios_regulacion',
+      phase: 'Día 31-60: Saneamiento Balance',
+      title: 'Formalizar contractualmente los saldos con socios (cta. 551)',
+      desc: 'Trazar y firmar un contrato formal de préstamo socio devengando tipo de interés legal (3,25% en 2026), blindando el balance ante auditorías de Due Diligence.'
+    });
+  }
 
-  // Tarea 6: Foco Comercial
+  // --- FASE 4: DÍA 61-100: RECUPERACIÓN Y RÁPIDO RETORNO ---
+
+  // Tarea 8: Foco Comercial
+  let titleComercial = 'Focalizar ventas comerciales en cobro upfront';
+  let descComercial = 'Incentivar al equipo de ventas para priorizar contratos anuales estructurados con cobro al contado, inyectando flujo de caja directo a banco.';
+  
+  if (intensidad === 'cremallera') {
+    titleComercial = '🎯 Pivote Comercial Express: Monetización de Activos';
+    descComercial = 'Pivote táctico a servicios express o venta de licencias perpetuas de bajo coste para asegurar caja inmediata, sacrificando margen a largo plazo.';
+  } else if (intensidad === 'moderado') {
+    titleComercial = '🟢 Aceleración comercial y diversificación';
+    descComercial = 'Priorizar la diversificación de clientes (para paliar riesgos de concentración) y afianzar contratos recurrentes estables de cobro mensual.';
+  }
+
   plan.push({
     id: 'foco_comercial',
     phase: 'Día 61-100: Recuperación y Rápido Retorno',
-    title: 'Focalizar el equipo comercial en proyectos/clientes de cobro anticipado',
-    desc: 'Priorizar la venta de servicios estándar u ofertas anuales con cobro upfront (al contado) para inyectar flujo de caja directo a banco.'
+    title: titleComercial,
+    desc: descComercial
   });
 
   return plan;
@@ -666,10 +728,21 @@ function buildMockAnalysisResultFromSim(inputs) {
  * Renderiza la interfaz principal del CFO Survival & Defense Board.
  */
 function renderSurvivalCockpit(root, data, simulated = false) {
+  // Garantizar inicialización de parámetros de autodiagnóstico
+  if (!STATE.defensaIntensidad) {
+    STATE.defensaIntensidad = 'defensivo';
+  }
+  if (!STATE.defensaPrioridades) {
+    STATE.defensaPrioridades = ['reduccion_opex', 'agilizar_cobros'];
+  }
+  const intensidad = STATE.defensaIntensidad;
+  const palancas = STATE.defensaPrioridades;
+
   const survival = getCashflowSurvivalStatus(data);
   const leaks = detectCashflowLeaks(data);
   const plan = build100DayShockPlan(survival, leaks);
   const points = buildContextualTalkingPoints(data);
+
 
   const runwayLabel = survival.runwayMeses === Infinity ? '∞' : survival.runwayMeses.toFixed(1);
   const diasLabel = survival.runwayDias === Infinity ? 'Sin quema de caja' : `${Math.round(survival.runwayDias)} días de vida`;
@@ -734,7 +807,88 @@ function renderSurvivalCockpit(root, data, simulated = false) {
       </button>
     </div>
 
+    <!-- PANEL DE AUTODIAGNÓSTICO ESTRATÉGICO -->
+    <div class="card" style="margin-bottom: 24px; border-color: var(--cyan); background: rgba(0, 0, 0, 0.25); box-shadow: var(--shadow-glow-cyan);">
+      <div class="card-title" style="font-size: 0.95rem; display: flex; align-items: center; gap: 8px; color: var(--cyan); margin-bottom: 8px;">
+        <span>🎯</span>
+        <span>Autodiagnóstico Estratégico de Supervivencia</span>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 16px;">
+        Define la intensidad de la contención operativa y activa las palancas financieras para tu plan de contingencia. El plan de 100 días y la estrategia de defensa se adaptarán en tiempo real.
+      </p>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+        <!-- Selector de Intensidad -->
+        <div>
+          <label style="font-size: 0.78rem; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px;">
+            Intensidad de Contención Operativa
+          </label>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button class="btn-diag-intensity ${intensidad === 'moderado' ? 'active' : ''}" data-intensity="moderado">
+              <span style="font-size: 1.1rem; flex-shrink:0;">🟢</span>
+              <div>
+                <strong style="font-size: 0.82rem; display: block; text-align: left;">Crecimiento Moderado</strong>
+                <span style="font-size: 0.72rem; color: var(--text-muted); display: block; text-align: left; line-height: 1.3;">Optimización discrecional de costes sin congelar equipo operativo.</span>
+              </div>
+            </button>
+            <button class="btn-diag-intensity ${intensidad === 'defensivo' ? 'active' : ''}" data-intensity="defensivo">
+              <span style="font-size: 1.1rem; flex-shrink:0;">🟡</span>
+              <div>
+                <strong style="font-size: 0.82rem; display: block; text-align: left;">Plan de Contención (Defensivo)</strong>
+                <span style="font-size: 0.72rem; color: var(--text-muted); display: block; text-align: left; line-height: 1.3;">Congelación selectiva de costes, renegociar contratos e impulsar cobros.</span>
+              </div>
+            </button>
+            <button class="btn-diag-intensity ${intensidad === 'cremallera' ? 'active' : ''}" data-intensity="cremallera">
+              <span style="font-size: 1.1rem; flex-shrink:0;">🔴</span>
+              <div>
+                <strong style="font-size: 0.82rem; display: block; text-align: left;">Plan Cremallera (Cierre de Grifos)</strong>
+                <span style="font-size: 0.72rem; color: var(--text-muted); display: block; text-align: left; line-height: 1.3;">Corte drástico de gastos, suspensión salarial y factoring del 100% de facturación.</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Palancas Estratégicas -->
+        <div>
+          <label style="font-size: 0.78rem; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px;">
+            Palancas de Mitigación Financiera
+          </label>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label class="palanca-checkbox-label ${palancas.includes('reduccion_opex') ? 'active' : ''}">
+              <input type="checkbox" class="defensa-palanca-checkbox" data-palanca="reduccion_opex" ${palancas.includes('reduccion_opex') ? 'checked' : ''} style="width: 16px; height: 16px; accent-color: var(--cyan); cursor:pointer;" />
+              <div>
+                <strong style="font-size: 0.82rem; color: var(--text-primary); display: block;">Reducción OPEX base cero</strong>
+                <span style="font-size: 0.72rem; color: var(--text-secondary); display: block; line-height: 1.3;">Suspender SaaS infrautilizados y pausar campañas publicitarias sin ROI.</span>
+              </div>
+            </label>
+            <label class="palanca-checkbox-label ${palancas.includes('agilizar_cobros') ? 'active' : ''}">
+              <input type="checkbox" class="defensa-palanca-checkbox" data-palanca="agilizar_cobros" ${palancas.includes('agilizar_cobros') ? 'checked' : ''} style="width: 16px; height: 16px; accent-color: var(--cyan); cursor:pointer;" />
+              <div>
+                <strong style="font-size: 0.82rem; color: var(--text-primary); display: block;">Agilización de Cobros (Circulante)</strong>
+                <span style="font-size: 0.72rem; color: var(--text-secondary); display: block; line-height: 1.3;">Campañas de recobro proactivo de facturas y factoring del circulante.</span>
+              </div>
+            </label>
+            <label class="palanca-checkbox-label ${palancas.includes('ronda_interna') ? 'active' : ''}">
+              <input type="checkbox" class="defensa-palanca-checkbox" data-palanca="ronda_interna" ${palancas.includes('ronda_interna') ? 'checked' : ''} style="width: 16px; height: 16px; accent-color: var(--cyan); cursor:pointer;" />
+              <div>
+                <strong style="font-size: 0.82rem; color: var(--text-primary); display: block;">Ronda Puente / Convertible express</strong>
+                <span style="font-size: 0.72rem; color: var(--text-secondary); display: block; line-height: 1.3;">Préstamo puente o inyección en cuenta 118 express con inversores clave.</span>
+              </div>
+            </label>
+            <label class="palanca-checkbox-label ${palancas.includes('banca_publica') ? 'active' : ''}">
+              <input type="checkbox" class="defensa-palanca-checkbox" data-palanca="banca_publica" ${palancas.includes('banca_publica') ? 'checked' : ''} style="width: 16px; height: 16px; accent-color: var(--cyan); cursor:pointer;" />
+              <div>
+                <strong style="font-size: 0.82rem; color: var(--text-primary); display: block;">Financiación Pública (ENISA / CDTI)</strong>
+                <span style="font-size: 0.72rem; color: var(--text-secondary); display: block; line-height: 1.3;">Acelerar solicitudes de fondos no dilutivos a 60 días para circulante.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px; align-items: start;">
+
       
       <!-- COL 1: FUGAS Y PLAN DE CHOQUE -->
       <div style="display:flex; flex-direction:column; gap:24px;">
@@ -849,6 +1003,38 @@ function renderSurvivalCockpit(root, data, simulated = false) {
       renderDefensa();
     });
   }
+
+  // Botones de Intensidad de Autodiagnóstico
+  document.querySelectorAll('.btn-diag-intensity').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const selectedInt = e.currentTarget.dataset.intensity;
+      STATE.defensaIntensidad = selectedInt;
+      if (typeof logAudit === 'function') {
+        logAudit('Intensidad de Defensa', `Estrategia de contención operativa cambiada a: ${selectedInt.toUpperCase()}`);
+      }
+      showToast(`Intensidad de contención: ${selectedInt.toUpperCase()} ✓`, 'success');
+      renderDefensa();
+    });
+  });
+
+  // Checkboxes de Palancas de Autodiagnóstico
+  document.querySelectorAll('.defensa-palanca-checkbox').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const activePalancas = [];
+      document.querySelectorAll('.defensa-palanca-checkbox').forEach(c => {
+        if (c.checked) {
+          activePalancas.push(c.dataset.palanca);
+        }
+      });
+      STATE.defensaPrioridades = activePalancas;
+      if (typeof logAudit === 'function') {
+        logAudit('Palancas de Defensa', `Palancas de mitigación modificadas a: ${activePalancas.join(', ')}`);
+      }
+      showToast('Palancas de mitigación actualizadas ✓', 'success');
+      renderDefensa();
+    });
+  });
+
 
   // Checkboxes de Plan de Choque
   document.querySelectorAll('.shock-checkbox').forEach(cb => {
