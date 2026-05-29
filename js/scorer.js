@@ -170,7 +170,7 @@ const CDTI_CRITERIOS = [
 function _calcularAntiguedad(fechaStr) {
   if (!fechaStr) return null;
   const constituida = new Date(fechaStr);
-  const ahora = new Date('2026-05-29'); // Fecha actual en base al contexto del sistema
+  const ahora = new Date(); // Fecha actual real del sistema
   let anios = ahora.getFullYear() - constituida.getFullYear();
   const mes = ahora.getMonth() - constituida.getMonth();
   if (mes < 0 || (mes === 0 && ahora.getDate() < constituida.getDate())) {
