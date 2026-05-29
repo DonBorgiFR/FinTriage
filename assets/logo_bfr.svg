@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 120">
+  <style>
+    .letra { fill: none; stroke: var(--cyan, #06b6d4); stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; }
+    .doble-linea { fill: none; stroke: var(--text-primary, #ffffff); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+  </style>
+
+  <g transform="translate(20, 20)">
+    <path class="letra" d="M10,80 V10 H40 C60,10 60,45 40,45 C65,45 65,80 40,80 Z" />
+    <line class="letra" x1="10" y1="45" x2="40" y2="45" />
+
+    <path class="letra" d="M85,80 V10 H130" />
+    <line class="letra" x1="85" y1="45" x2="120" y2="45" />
+
+    <path class="letra" d="M160,80 V10 H190 C210,10 210,45 190,45 H160" />
+    <path class="letra" d="M185,45 C195,45 205,65 240,30" />
+  </g>
+</svg>
