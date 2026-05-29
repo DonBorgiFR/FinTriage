@@ -2873,9 +2873,54 @@ function initPillFilters() {
   });
 }
 
+function initHelpModal() {
+  const modalOverlay = document.getElementById('help-modal-overlay');
+  const btnOpenHelp = document.getElementById('btn-open-help');
+  const btnCloseHelp = document.getElementById('btn-close-help');
+
+  if (!modalOverlay || !btnOpenHelp || !btnCloseHelp) return;
+
+  const openModal = () => {
+    modalOverlay.style.display = 'flex';
+    requestAnimationFrame(() => {
+      modalOverlay.classList.add('show');
+    });
+  };
+
+  const closeModal = () => {
+    modalOverlay.classList.remove('show');
+    setTimeout(() => {
+      modalOverlay.style.display = 'none';
+    }, 300);
+  };
+
+  btnOpenHelp.addEventListener('click', (e) => {
+    e.preventDefault();
+    openModal();
+  });
+
+  btnCloseHelp.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeModal();
+  });
+
+  modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) {
+      closeModal();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modalOverlay.classList.contains('show')) {
+      closeModal();
+    }
+  });
+}
+
 // ---- Init ----
 initPreviewGridListeners();
 initPillFilters();
+initHelpModal();
 renderDefensa();
 renderRulesLibrary();
 
