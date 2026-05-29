@@ -1,6 +1,6 @@
 # FinTriage — CFO & Portfolio Toolkit
 
-> **Versión Actual:** `v1.3.1` · Plataforma Local-First de Triage y Diagnóstico Financiero para Startups y Pymes.
+> **Versión Actual:** `v1.4.0` · Plataforma Local-First de Triage y Diagnóstico Financiero para Startups y Pymes.
 
 [![Demo en Vivo](https://img.shields.io/badge/Demo%20en%20Vivo-https%3A%2F%2Ffin--triage.vercel.app%2F-cyan?style=for-the-badge&logo=vercel&logoColor=white)](https://fin-triage.vercel.app/)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Borja%20Felix%20Rojas-blue?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/borjafelixrojas/)
@@ -14,11 +14,11 @@
 
 La aplicación implementa una estética de alta fidelidad inmersiva basada en **Dark Glassmorphism**, ofreciendo paneles interactivos fluidos y micro-animaciones reactivas sin sobrecargar el navegador.
 
-````carousel
+```carousel
 ![1. Dashboard Analítico de EBITDA](assets/fintriage-dashboard-mockup.png)
 <!-- slide -->
 ![2. Panel de Triage Multicompañía (Cartera)](assets/fintriage-portfolio-mockup.png)
-````
+```
 
 ---
 
@@ -63,7 +63,7 @@ La aplicación está diseñada como una Single Page Application (SPA) ultraliger
 | **Analyzer** | `analyzer.js` | Motor de reglas declarativo, Trust Score, clasificación a PyG analítica y motor de devengos. |
 | **Cartera** | `cartera.js` | Triage tridimensional multicompañía, semáforos de urgencia y routing por perfiles. |
 | **Defensa** | `defensa.js` | Cockpit de supervivencia de caja, DSO/DPO reales y plan de choque interactivo de 100 días. |
-| **Scorer** | `scorer.js` | Evaluación de elegibilidad financiera para líneas ENISA y CDTI Neotec. |
+| **Scorer** | `scorer.js` | Motor de elegibilidad multicriterio para 8 líneas de financiación (ENISA, CDTI Neotec, ICO Crecimiento, ICO Verde, SGR/CERSA, Torres Quevedo, EIC Accelerator y MicroBank). |
 | **Forecaster** | `forecaster.js` | Proyección estadística a 12 meses con escenarios (optimista, base, pesimista). |
 | **Session** | `session.js` | Persistencia unificada local de archivos de sesión en formato `.fintriage` y `.aptki`. |
 | **Narrative** | `narrative.js` | Motor de análisis textual para disclaimers y comentarios de EBITDA. |
@@ -83,7 +83,32 @@ El sistema interactúa de forma transparente con dos esquemas locales basados en
 
 ---
 
-## 6. Flujo de Uso Básico
+## 6. Motor Scorer Multilínea y Perfil Empresarial Ampliado
+
+Para ofrecer una alternativa superior y totalmente diferenciada de las herramientas tradicionales (como APTKI), FinTriage v1.4.0 incorpora un **Perfil Empresarial Ampliado** en el Paso 2 (Contexto Contable) y un **Motor Scorer Modular** que analiza y califica la elegibilidad de la compañía frente a **8 líneas financieras públicas y bancarias de alto impacto**:
+
+1. **ENISA (Jóvenes Emprendedores, Emprendedores y Crecimiento)**: Evaluación clásica de Fondos Propios y rating financiero.
+2. **CDTI Neotec**: Diagnóstico estricto de empresa innovadora y test de crisis UE.
+3. **ICO Crecimiento**: Línea de préstamo bancario con garantía ICO para financiar inversiones y circulante a medio-largo plazo.
+4. **ICO Verde (Fase 1.5)**: Financiamiento verde enfocado en mitigación ambiental (línea disponible de forma transitoria hasta el 31 de agosto de 2026).
+5. **SGR / CERSA**: Evaluación de avales financieros a nivel de Sociedades de Garantía Recíproca, con enrutado inteligente por Comunidad Autónoma (p. ej., Avalis en Cataluña, Avalmadrid en Madrid, etc.).
+6. **Torres Quevedo**: Subvenciones para la contratación de doctores en I+D.
+7. **EIC Accelerator**: Altamente competitiva financiación europea mixta (grant + equity) para disrupción profunda de base tecnológica, con advertencias de uso único si ya se ha concedido previamente.
+8. **MicroBank**: Microcréditos ágiles de hasta 30.000 € (o 50.000 € en convenios especiales) para microempresas y autónomos sin necesidad de aval real.
+
+### Perfil Empresarial Ampliado (100% Retrocompatible)
+El formulario del Paso 2 recoge de forma fluida y no intrusiva los siguientes calificadores cualitativos y cuantitativos que alimentan este motor de scoring:
+* **Constitución y Geografía**: Fecha de constitución y Comunidad Autónoma fiscal (para enrutado regional SGR).
+* **Operaciones**: Empleados, auditoría de cuentas, porcentaje de ventas al exterior e inversiones procedentes del extranjero.
+* **I+D y Tecnología**: Nivel de Madurez Tecnológica (TRL 1-9), actividad explícita en I+D, intención de contratar doctores y posesión de Propiedad Intelectual propia.
+* **Historial y Sostenibilidad**: Si se ha concedido previamente ayuda EIC Accelerator y si el proyecto califica como "proyecto verde" (economía circular, energías renovables, descarbonización).
+
+> [!NOTE]
+> **Garantía de Retrocompatibilidad:** Si se carga una sesión antigua `.fintriage` o `.aptki` donde no estén informados estos campos, el motor de rehidratación defensiva los inicializa a `null` o `false` para que los evaluadores de `scorer.js` calculen el scoring base sin arrojar errores ni penalizaciones redundantes.
+
+---
+
+## 7. Flujo de Uso Básico
 
 ```
 [Libro Diario .xlsx] o [Sesión .fintriage / .aptki]
@@ -91,13 +116,12 @@ El sistema interactúa de forma transparente con dos esquemas locales basados en
                         ▼
                 [session.js] (Detección automática de formato)
                  /        \
-                /          \
+                 /          \
           (Single Mode)    (Portfolio Mode)
               /              \
              ▼                ▼
      [Dashboard Individual] ──► [Tabla de Control de Cartera]
-      - Periodificaciones        - Triage Tridimensional
-      - Scoring ENISA/CDTI       - Filtros por Ruta e Hitos
+      - Scoring Multilínea Ampliado - Filtros por Ruta e Hitos
       - Cockpit de Defensa       - Copiado de Ficha Express 📋
       - Proyecciones 12M         - Transición con 1-click a Dashboard
 ```
@@ -110,7 +134,7 @@ El sistema interactúa de forma transparente con dos esquemas locales basados en
 
 ---
 
-## 7. Despliegue en Vercel (Sitio Estático)
+## 8. Despliegue en Vercel (Sitio Estático)
 
 Al ser una aplicación 100% client-side sin backend ni base de datos, el despliegue es sumamente sencillo e inmediato:
 
@@ -131,26 +155,26 @@ Sigue las preguntas interactivas en pantalla y en menos de 30 segundos tendrás 
 
 ---
 
-## 8. Licencia y Confidencialidad
+## 9. Licencia y Confidencialidad
 
 *   **Licencia**: Licencia MIT. Libre de usar, modificar y distribuir de forma personal o comercial.
 *   **Garantía**: Esta herramienta se provee "tal cual", sin garantías de ningún tipo. Los diagnósticos financieros, tributarios y de elegibilidad pública son orientativos y de carácter instrumental; no constituyen asesoría fiscal, legal o de inversión formal.
 
 ---
 
-## 9. Próximos Grandes Hitos (Roadmap)
+## 10. Próximos Grandes Hitos (Roadmap)
 
-La arquitectura de **FinTriage** ya consolida con éxito las **Fases 1 a 9** de su desarrollo estratégico (incluyendo el motor reactivo por Deep Proxies, análisis dinámico del PGC, scoring público ENISA/CDTI, cockpit de supervivencia de caja a 100 días y la tabla de priorización de cartera multicompañía). Puedes consultar el historial técnico detallado de cada fase en el [CHANGELOG.md](CHANGELOG.md).
+La arquitectura de **FinTriage** ya consolida con éxito las **Fases 1 a 9** de su desarrollo estratégico (incluyendo el motor reactivo por Deep Proxies, análisis dinámico del PGC, el cockpit de supervivencia a 100 días, la tabla de cartera de alto impacto y la flamante **Expansión Multilínea v1.4.0**). Puedes consultar el historial técnico detallado de cada fase en el [CHANGELOG.md](CHANGELOG.md).
 
 De cara a las próximas actualizaciones, el roadmap contempla:
 
-1. **Copiloto IA Financiero (Integración LLM)**: Incorporación de un motor de lenguaje local o mediante API de alta seguridad para interpretar automáticamente la Ficha de Triage y generar informes completos de due diligence, argumentarios de inversión y reportes analíticos con un solo clic.
-2. **Score Avanzado de Financiación Bancaria**: Incorporación de reglas de scoring basadas en el rating de solvencia y análisis de capacidad de servicio de la deuda bancaria española (CIRBE).
+1. **Copiloto IA Financiero (Integración LLM)**: Incorporación de un motor de lenguaje local o mediante API de alta seguridad para interpretar automáticamente la Ficha de Triage, evaluando la elegibilidad del scoring ampliado y redactando de forma inteligente argumentarios de inversión y análisis cualitativos personalizados para cada línea (ICO, SGR, Torres Quevedo, etc.).
+2. **Modelo Avanzado de Solvencia y CIRBE**: Incorporación de reglas de scoring basadas en el rating de solvencia contable y análisis de capacidad de servicio de la deuda bancaria española (CIRBE) para robustecer la evaluación de líneas ICO y MicroBank.
 3. **Módulo de Conciliación Bancaria Automática (PSD2)**: Conexión segura e ingesta de movimientos bancarios en tiempo real para contrastar y verificar la conciliación de caja frente al diario.
 
 ---
 
-## 10. Identidad Visual y Logotipos
+## 11. Identidad Visual y Logotipos
 
 Los recursos gráficos oficiales de FinTriage están disponibles en la carpeta [assets/](assets/) e incluyen las siguientes variantes:
 *   `logo-wordmark.svg`: Wordmark tipográfico limpio y minimalista (diseño recomendado).

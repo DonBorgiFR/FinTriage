@@ -2,6 +2,29 @@
 
 Historial de versiones y evolución del CFO Toolkit de FinTriage.
 
+## [1.4.0] — 2026-05-29 (Expansión Multilínea de Financiación y Perfil Empresarial Ampliado)
+
+### Añadido
+*   **Perfil Empresarial Ampliado ("Paso 2 - Contexto Contable") en `index.html` y `css/index.css`**:
+    *   Nuevo formulario con diseño Glassmorphic premium que recopila calificadores clave de la startup: Fecha de constitución, CCAA fiscal (para ruteado regional de SGR), Cuentas Auditadas, Empleados, Ventas al exterior, Inversiones extranjeras, Madurez tecnológica (TRL 1-9), Actividad explícita I+D, Contratación de doctores, posesión de Propiedad Intelectual, ayudas EIC previas y si el proyecto califica como ecológico/sostenible ("Proyecto Verde").
+*   **Motor Scorer Modular en `js/scorer.js` ampliado con 6 nuevas líneas**:
+    *   **ICO Crecimiento**: Calificación en función de EBITDA normalizado, EBITDA/Ventas, antigüedad (>2 años), y Fondos Propios positivos.
+    *   **ICO Verde (Fase 1.5)**: Calificación específica para sostenibilidad con un aviso transitorio crítico de fecha límite (31 de agosto de 2026).
+    *   **SGR / CERSA**: Algoritmo regional que asocia y enruta automáticamente la Comunidad Autónoma fiscal seleccionada (p. ej., Avalis para Cataluña, Avalmadrid para Madrid, Elkargi para País Vasco, etc.).
+    *   **Torres Quevedo**: Scoring basado en el TRL (óptimo TRL 3-6), posesión de IP, actividad I+D e intención de contratar doctores.
+    *   **EIC Accelerator**: Scoring sumamente exigente (TRL óptimo de 5-8, IP, ventas exteriores) con una alerta crítica de "uso único" si ya se concedió una subvención EIC previa.
+    *   **MicroBank**: Scoring para microfinanciamiento sin avales reales basado en facturación contenida y antigüedad societaria.
+*   **Alertas de Uso Único y Prompts IA en `js/exporter.js` y `js/narrative.js`**:
+    *   Se inyecta una advertencia explícita en el portapapeles del Prompt IA y en el análisis narrativo del PDF si el Scorer detecta una postulación concurrente para EIC Accelerator habiendo tenido una concesión previa de la misma.
+
+### Modificado/Corregido
+*   **Garantía de Retrocompatibilidad Absoluta (`js/session.js`)**:
+    *   El cargador de sesiones se ha robustecido de forma defensiva inyectando por defecto valores `null` o `false` para todos los nuevos campos en `session.js` (`loadSingleSessionData`). Esto garantiza que los archivos `.fintriage` e históricos `.aptki` se abran de forma transparente, permitiendo que el motor de `scorer.js` los califique sin arrojar fallos de lectura, falsas advertencias o penalizaciones.
+*   **Accordion UI y UI Premium en Scorer**:
+    *   El listado de elegibilidad del Paso 4 cuenta ahora con un panel Glassmorphic expansible mediante acordeón con efectos hover y marcadores de estado (Elegible, Pre-elegible, No elegible) estilizados con degradados y leyendas de acumulación financiera.
+
+---
+
 ## [1.3.5] — 2026-05-21 (Refinamiento Visual PDF: Gráficos Correctamente Encuadrados)
 
 ### Corregido
