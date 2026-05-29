@@ -289,6 +289,14 @@ async function handleFile(file) {
   selectProfile('saas');
 
   // Reset
+  STATE.customMapping = null;
+  STATE.approvedAccruals = [];
+  STATE.contextChecklist = null;
+  STATE.analysisResult = null;
+  STATE.parsedLedger = null;
+  STATE.empresa = { nombre: '', sector: '', empleados: 0 };
+  STATE.auditTrail = [];
+
   document.getElementById('parse-progress').classList.remove('show');
   document.getElementById('parse-summary').classList.remove('show');
   document.getElementById('preview-section').style.display = 'none';
@@ -355,8 +363,10 @@ document.getElementById('btn-analizar').addEventListener('click', async () => {
 
     // Actualizar badge empresa (temporalmente hasta el dashboard)
     const nombre = STATE.empresa.nombre || parsed.meta.fileName;
+    const icon = STATE.selectedProfile?.icon || '🏢';
+    const profileName = STATE.selectedProfile?.name || 'Perfil General';
     document.getElementById('empresa-badge').textContent =
-      `${nombre} · ${STATE.selectedProfile.icon} ${STATE.selectedProfile.name}`;
+      `${nombre} · ${icon} ${profileName}`;
 
     // Mostrar resumen del parseo
     renderParseSummary(parsed);
@@ -765,7 +775,7 @@ function renderMappingTable() {
 
   // Inicializamos el mapeo default
   if (!STATE.customMapping) {
-    STATE.customMapping = getDefaultMapping(uniqueCuentas, STATE.selectedProfile.id, descripcionesMap);
+    STATE.customMapping = getDefaultMapping(uniqueCuentas, STATE.selectedProfile?.id || 'saas', descripcionesMap);
   }
 
   // Filtrar para mostrar sólo grupos 6 y 7 (PyG) con saldo relevante
@@ -784,7 +794,7 @@ function renderMappingTable() {
     const colorClass = isIngreso ? 'td-credit' : 'td-debit';
     
     // Obtener heurística SaaS
-    const heuristic = getSaaSHeuristic(cta.cuenta, cta.desc, STATE.selectedProfile.id);
+    const heuristic = getSaaSHeuristic(cta.cuenta, cta.desc, STATE.selectedProfile?.id || 'saas');
     let heuristicBadgeHtml = '<span class="heuristic-badge-none">—</span>';
     let rowReviewClass = '';
     
@@ -977,7 +987,7 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
           tCoreStart = performance.now();
           STATE.analysisResult = analyzeLedger(
             STATE.parsedLedger, 
-            STATE.selectedProfile.id, 
+            STATE.selectedProfile?.id || 'saas', 
             STATE.customMapping,
             STATE.approvedAccruals || [],
             STATE.contextChecklist
@@ -1011,7 +1021,9 @@ document.getElementById('btn-goto-dashboard').addEventListener('click', () => {
 
         const remappedCount = STATE.customMapping ? Object.keys(STATE.customMapping).length : 0;
         const accrualCount = (STATE.approvedAccruals || []).length;
-        logAudit('Perfil seleccionado', `${STATE.selectedProfile.name} (${STATE.selectedProfile.id})`);
+        const profileName = STATE.selectedProfile?.name || 'Perfil General';
+        const profileId = STATE.selectedProfile?.id || 'generico';
+        logAudit('Perfil seleccionado', `${profileName} (${profileId})`);
         if (remappedCount > 0) logAudit('Remapeo manual', `${remappedCount} cuentas reclasificadas`);
         if (accrualCount > 0) logAudit('Devengos aprobados', `${accrualCount} periodificaciones aplicadas`);
         logAudit('Dashboard generado', `Trust Score: ${STATE.analysisResult.confidence.trustScore}/100 · Confianza: ${STATE.analysisResult.confidence.confidenceLabel} · EBITDA Suspect: ${STATE.analysisResult.confidence.ebitdaSuspect ? 'SÍ' : 'NO'}`);
@@ -1500,7 +1512,7 @@ function renderDashboard(onComplete) {
   const kpiPerfilSection = document.getElementById('kpi-perfil-section');
   if (perfilKpis.length > 0) {
     kpiPerfilSection.style.display = 'block';
-    document.getElementById('kpi-perfil-title').textContent = `KPIs ${profile.name}`;
+    document.getElementById('kpi-perfil-title').textContent = `KPIs ${profile?.name || 'del Perfil'}`;
     const kpiPerfilEl = document.getElementById('kpi-perfil');
     const kpiResults = {};
 
