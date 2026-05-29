@@ -384,23 +384,31 @@ function scoreTorresQuevedo(data, context) {
 }
 
 function scoreEICAccelerator(data, context) {
-  const trl = context.trl || 0;
-  const empleados = context.numEmpleados || 0;
+  const trl = (context.trl !== null && context.trl !== undefined) ? parseInt(context.trl) : null;
+  const empleados = (context.numEmpleados !== null && context.numEmpleados !== undefined) ? parseInt(context.numEmpleados) : null;
   const ingresos = data.totales?.ingresos || 0;
   const trustScore = data.confidence?.trustScore || 0;
   const tieneIP = context.tieneIP === true;
   
-  const esPymeUE = empleados < 250 && ingresos < 50000000;
-  const cumpleTRL = trl >= 5;
+  const esPymeUE = (empleados === null) ? true : (empleados < 250 && ingresos < 50000000);
+  const cumpleTRL = (trl === null) ? false : (trl >= 5);
   
   if (!cumpleTRL || !esPymeUE) {
     let motivos = [];
-    if (!cumpleTRL) motivos.push(`Nivel de madurez tecnológica bajo (TRL ${trl} registrado, requiere TRL >= 5).`);
+    if (!cumpleTRL) {
+      if (trl === null) {
+        motivos.push("No se ha especificado el nivel de madurez tecnológica (TRL), se requiere TRL >= 5.");
+      } else {
+        motivos.push(`Nivel de madurez tecnológica bajo (TRL ${trl} registrado, requiere TRL >= 5).`);
+      }
+    }
     if (!esPymeUE) motivos.push(`Supera los límites máximos de PYME de la Unión Europea (empleados: ${empleados}, facturación: ${_fmtEur(ingresos)}).`);
     return {
       elegible: 'no_elegible',
       motivo: `Ayuda inactiva. ${motivos.join(" ")}`,
-      accion: "Avanzar en el desarrollo técnico (TRL 5 en adelante) para optar a este instrumento altamente disruptivo."
+      accion: trl === null 
+        ? "Especificar el nivel TRL de madurez tecnológica en el perfil cualitativo (Paso 2)."
+        : "Avanzar en el desarrollo técnico (TRL 5 en adelante) para optar a este instrumento altamente disruptivo."
     };
   }
   
@@ -435,7 +443,7 @@ function scoreEICAccelerator(data, context) {
 
 function scoreMicroBank(data, context) {
   const ingresos = data.totales?.ingresos || 0;
-  const empleados = context.numEmpleados;
+  const empleados = (context.numEmpleados !== null && context.numEmpleados !== undefined) ? parseInt(context.numEmpleados) : null;
   
   const cumpleFacturacion = ingresos < 2000000;
   const cumpleEmpleados = empleados !== null ? empleados <= 10 : null;
