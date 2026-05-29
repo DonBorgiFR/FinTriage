@@ -71,7 +71,7 @@
             color: var(--text-primary, #e2e8f0);
             margin: 0 0 3px;
             line-height: 1.2;
-          ">FinTriage — CFO &amp; Portfolio Toolkit</h2>
+          ">FinTriage — Guía Rápida de Uso</h2>
           <p style="margin:0; font-size:0.82rem; color:var(--cyan,#01c8d2); font-weight:600; letter-spacing:0.04em; text-transform:uppercase;">
             Guía rápida de uso · Local-First · Zero-Server
           </p>
@@ -91,8 +91,8 @@
       <div style="margin-bottom:22px;">
         <h3 style="font-size:0.8rem; font-weight:700; color:var(--cyan,#01c8d2); text-transform:uppercase; letter-spacing:0.06em; margin:0 0 10px;">¿Para quién?</h3>
         <p style="font-size:0.9rem; line-height:1.65; color:var(--text-secondary,#94a3b8); margin:0;">
-          Para <strong style="color:var(--text-primary)">CFOs externos, consultores financieros independientes y asesores</strong> que gestionan varias
-          startups o PYMEs en paralelo y necesitan diagnósticos rápidos, comparables y exportables.
+          Para el <strong style="color:var(--text-primary)">dueño de la PYME, cualquier miembro de su equipo, o su contable/financiero de confianza</strong>.
+          La herramienta está diseñada para un uso personal sencillo y directo: no requiere ser un experto financiero ni un mega-CFO. Si dispones de un libro diario contable y tienes interés en entender la salud de tu negocio, aquí obtendrás un diagnóstico claro y fácil.
         </p>
       </div>
 
@@ -147,7 +147,7 @@
       <div style="height:1px; background:rgba(255,255,255,0.07); margin:24px 0;"></div>
 
       <!-- Sección: persistencia y exportación -->
-      <div style="margin-bottom:8px;">
+      <div style="margin-bottom:22px;">
         <h3 style="font-size:0.8rem; font-weight:700; color:var(--cyan,#01c8d2); text-transform:uppercase; letter-spacing:0.06em; margin:0 0 10px;">Persistencia &amp; Exportaciones</h3>
         <div style="display:flex; flex-wrap:wrap; gap:8px;">
           ${ [
@@ -164,6 +164,32 @@
               <div style="color:var(--text-muted,#64748b); font-size:0.72rem;">${desc}</div>
             </div>
           </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Separador -->
+      <div style="height:1px; background:rgba(255,255,255,0.07); margin:24px 0;"></div>
+
+      <!-- Sección: FAQ -->
+      <div style="margin-bottom:22px;">
+        <h3 style="font-size:0.8rem; font-weight:700; color:var(--cyan,#01c8d2); text-transform:uppercase; letter-spacing:0.06em; margin:0 0 14px;">Preguntas Frecuentes (FAQ)</h3>
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:12px 14px;">
+            <strong style="font-size:0.86rem; color:var(--text-primary); display:block; margin-bottom:4px;">¿Qué es un libro diario y cómo lo consigo?</strong>
+            <div style="font-size:0.78rem; color:var(--text-secondary,#94a3b8); line-height:1.55;">Es el archivo contable donde se registran todos los movimientos y asientos de tu negocio. Puedes exportarlo en un segundo en formato Excel (.xlsx) desde tu propio software de facturación o contabilidad (Holded, Anfix, Contasol, A3, etc.).</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:12px 14px;">
+            <strong style="font-size:0.86rem; color:var(--text-primary); display:block; margin-bottom:4px;">¿Mis datos están seguros?</strong>
+            <div style="font-size:0.78rem; color:var(--text-secondary,#94a3b8); line-height:1.55;">Sí, al 100%. FinTriage opera bajo filosofía <em>Local-First (Zero-Server)</em>, lo que significa que todo el procesamiento se ejecuta íntegramente dentro de tu propio navegador web. Ningún dato contable se envía a internet o a servidores externos, garantizando confidencialidad absoluta.</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:12px 14px;">
+            <strong style="font-size:0.86rem; color:var(--text-primary); display:block; margin-bottom:4px;">¿Qué pasa si dejo campos vacíos en el Paso 2?</strong>
+            <div style="font-size:0.78rem; color:var(--text-secondary,#94a3b8); line-height:1.55;">No pasa absolutamente nada. El asistente es flexible: los campos del perfil cualitativo sirven para afinar la elegibilidad de ayudas específicas (como Torres Quevedo o EIC), pero dejarlos vacíos o incompletos no impedirá en absoluto que obtengas tu diagnóstico general.</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:12px 14px;">
+            <strong style="font-size:0.86rem; color:var(--text-primary); display:block; margin-bottom:4px;">¿Cómo se calculan el EBITDA normalizado y las periodificaciones?</strong>
+            <div style="font-size:0.78rem; color:var(--text-secondary,#94a3b8); line-height:1.55;">El motor identifica automáticamente picos anuales o gastos extraordinarios concentrados en un mes (como primas de seguros o licencias anuales) y te ofrece prorratearlos mes a mes. Esto te ayuda a visualizar la rentabilidad operativa real de tu negocio sin ruido estacional.</div>
+          </div>
         </div>
       </div>
 
