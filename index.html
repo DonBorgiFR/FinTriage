@@ -105,9 +105,8 @@
         <label for="file-input" class="btn btn-primary" style="cursor:pointer;">
           ⬆️ Seleccionar archivo
         </label>
-        <input type="file" id="file-input" accept=".xlsx,.xls" />
-        <br/><br/>
         <span class="dropzone-hint">🔒 El archivo nunca sale de tu navegador</span>
+        <p class="dropzone-disclaimer-note" style="margin-top: 14px; font-size: 0.72rem; color: var(--text-muted); max-width: 500px; margin-left: auto; margin-right: auto; line-height: 1.4; opacity: 0.8;">Los diagnósticos e indicadores generados son simulaciones analíticas e informativas de carácter instrumental, y no constituyen asesoramiento fiscal, legal o de inversión formal.</p>
       </div>
 
       <!-- PERFIL SELECTOR -->
@@ -305,7 +304,90 @@
               <label style="display:flex; align-items:center; gap:6px; font-weight:normal;"><input type="checkbox" id="ctx-dist-high_capex" value="high_capex"> CAPEX Alto / Activaciones</label>
               <label style="display:flex; align-items:center; gap:6px; font-weight:normal;"><input type="checkbox" id="ctx-dist-annual_costs" value="annual_costs"> Gastos Anuales</label>
               <label style="display:flex; align-items:center; gap:6px; font-weight:normal;"><input type="checkbox" id="ctx-dist-financing_event" value="financing_event"> Evento Financiación</label>
+          </div>
+        </div>
+
+        <!-- NUEVO: PERFIL EMPRESARIAL AMPLIADO -->
+        <div class="card" style="margin-top: 24px;">
+          <div class="card-title">🌐 Perfil Empresarial Ampliado (Opcional - Financiación Extendida)</div>
+          <p style="font-size:0.83rem;color:var(--text-muted);margin-bottom:18px;">
+            Completa estos campos cualitativos para evaluar de forma automatizada líneas ICO (incluyendo ICO Verde), avales de SGR regionales, Torres Quevedo y el EIC Accelerator de la UE.
+          </p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+            <div class="form-group">
+              <label for="ctx-fechaConstitucion">Fecha de Constitución</label>
+              <input type="date" id="ctx-fechaConstitucion" style="width:100%;" />
+              <p class="form-help-text">Requerida para la antigüedad de ICO Crecimiento (mín. 4 años) o ayudas de reciente constitución.</p>
             </div>
+            <div class="form-group">
+              <label for="ctx-ccaaFiscal">Comunidad Autónoma (Domicilio Fiscal)</label>
+              <select id="ctx-ccaaFiscal" style="width:100%;">
+                <option value="">— Seleccionar —</option>
+                <option value="cataluna">Cataluña (Avalis SGR)</option>
+                <option value="pais_vasco">País Vasco (Elkargi SGR)</option>
+                <option value="madrid">Comunidad de Madrid (Avalmadrid SGR)</option>
+                <option value="valencia">Comunidad Valenciana (Afín SGR)</option>
+                <option value="andalucia">Andalucía (Garántia SGR)</option>
+                <option value="galicia">Galicia (Afigal / Sogarpo)</option>
+                <option value="otras">Otras Comunidades</option>
+              </select>
+              <p class="form-help-text">Determina la Sociedad de Garantía Recíproca (SGR) regional de reaval.</p>
+            </div>
+            <div class="form-group">
+              <label for="ctx-cuentasAuditadas">¿Cuentas auditadas de los dos últimos ejercicios?</label>
+              <select id="ctx-cuentasAuditadas" style="width:100%;">
+                <option value="">— No indicado / No auditado —</option>
+                <option value="true">Sí, auditadas</option>
+                <option value="false">No auditadas</option>
+              </select>
+              <p class="form-help-text">Obligatorio para la línea directa de ICO Crecimiento si no se dispone de aval SGR.</p>
+            </div>
+            <div class="form-group">
+              <label for="ctx-numEmpleados">Número total de empleados</label>
+              <input type="number" id="ctx-numEmpleados" placeholder="Ej: 12" min="0" style="width:100%;" />
+              <p class="form-help-text">Indica si la empresa es Pequeña, Mediana o Grande a efectos de la UE y Torres Quevedo.</p>
+            </div>
+            <div class="form-group">
+              <label for="ctx-pctVentasExterior">% de ventas al exterior</label>
+              <input type="number" id="ctx-pctVentasExterior" placeholder="Ej: 25" min="0" max="100" style="width:100%;" />
+              <p class="form-help-text">Ratio sobre facturación total. Usado para ICO Crecimiento Exportadores.</p>
+            </div>
+            <div class="form-group">
+              <label for="ctx-trl">Nivel de madurez tecnológica (TRL)</label>
+              <select id="ctx-trl" style="width:100%;">
+                <option value="">— Seleccionar TRL —</option>
+                <option value="1">TRL 1: Principios básicos observados</option>
+                <option value="2">TRL 2: Concepto tecnológico formulado</option>
+                <option value="3">TRL 3: Prueba de concepto experimental</option>
+                <option value="4">TRL 4: Tecnología validada en laboratorio</option>
+                <option value="5">TRL 5: Validada en entorno relevante</option>
+                <option value="6">TRL 6: Demostrada en entorno relevante</option>
+                <option value="7">TRL 7: Demostración en entorno operacional</option>
+                <option value="8">TRL 8: Sistema completo y calificado</option>
+                <option value="9">TRL 9: Sistema probado con éxito real</option>
+              </select>
+              <p class="form-help-text">El programa EIC Accelerator europeo requiere un TRL mínimo de 5.</p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 16px; margin-top: 20px; flex-wrap: wrap;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;color:var(--text-secondary);font-weight:normal;">
+              <input type="checkbox" id="ctx-tieneActividadID" style="width:16px;height:16px;accent-color:var(--cyan);"/> Tiene actividad I+D formalizada
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;color:var(--text-secondary);font-weight:normal;">
+              <input type="checkbox" id="ctx-quiereContratarDoctor" style="width:16px;height:16px;accent-color:var(--cyan);"/> Quiere contratar un investigador Doctor
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;color:var(--text-secondary);font-weight:normal;">
+              <input type="checkbox" id="ctx-inversionExterior" style="width:16px;height:16px;accent-color:var(--cyan);"/> Inversión productiva en el exterior
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;color:var(--text-secondary);font-weight:normal;">
+              <input type="checkbox" id="ctx-tieneIP" style="width:16px;height:16px;accent-color:var(--cyan);"/> Posee patentes o propiedad intelectual protegida
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;color:var(--text-secondary);font-weight:normal;">
+              <input type="checkbox" id="ctx-eicConcedidoPrevio" style="width:16px;height:16px;accent-color:var(--cyan);"/> Recibió ayuda EIC Accelerator en 2021-2027
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;color:var(--text-secondary);font-weight:normal;">
+              <input type="checkbox" id="ctx-proyectoVerde" style="width:16px;height:16px;accent-color:var(--cyan);"/> Proyecto de transición verde / sostenible (ICO Verde)
+            </label>
           </div>
         </div>
 
@@ -667,9 +749,26 @@
           </div>
         </div>
       </div>
-    </section>
-
   </main>
+
+  <!-- FOOTER CON DISCLAIMER LEGAL Y REDES -->
+  <footer class="app-footer" role="contentinfo">
+    <div class="footer-content">
+      <div class="footer-links">
+        <a href="https://www.linkedin.com/in/borjafelixrojas/" target="_blank" rel="noopener noreferrer">🔗 LinkedIn</a>
+        <span class="footer-sep">•</span>
+        <a href="https://borjafelixrojas.odoo.com/" target="_blank" rel="noopener noreferrer">🌐 Sitio Web</a>
+        <span class="footer-sep">•</span>
+        <a href="https://github.com/DonBorgiFR" target="_blank" rel="noopener noreferrer">💻 GitHub</a>
+      </div>
+      <div class="footer-disclaimer">
+        <strong>Aviso Legal & Confidencialidad:</strong> Los diagnósticos financieros, análisis contables de devengos, estimaciones de runway de tesorería y scores de elegibilidad para líneas públicas (ENISA/CDTI) generados por esta herramienta son simulaciones analíticas de carácter puramente informativo y de soporte a la decisión. No constituyen bajo ningún concepto asesoramiento tributario, fiscal, legal, de inversión o financiero formal. El procesamiento de los datos se realiza de forma 100% local en tu navegador web bajo filosofía <em>Local-First (Zero-Server)</em>, garantizando total confidencialidad al no transmitir datos contables o personales a servidores externos.
+      </div>
+      <div class="footer-copyright">
+        FinTriage v1.3.1 · Licencia MIT · © 2026 Borja Felix Rojas. Desarrollado con rigurosidad e ingeniería.
+      </div>
+    </div>
+  </footer>
 </div>
 
 <!-- TOAST CONTAINER -->

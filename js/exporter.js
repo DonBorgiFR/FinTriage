@@ -22,6 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
         ? buildNarrative(data, STATE.forecastResult, STATE.scoringResult)
         : { defensa: '' };
 
+      const isEICElegible = STATE.scoringResult?.eicAccelerator?.elegible === true;
+      const eicConcedidoPrevio = STATE.contextChecklist?.eicConcedidoPrevio === true;
+      
+      const eicFlag = (isEICElegible && !eicConcedidoPrevio)
+        ? "\n\n⚠️ [RESTRICCIÓN CRÍTICA EIC ACCELERATOR]: La empresa es potencialmente elegible para el EIC Accelerator de la UE. Este instrumento de alta financiación competitiva se concede UNA SOLA VEZ por empresa en el período de Horizonte Europa (2021-2027). La postulación mercantil requiere de una planificación contable y estratégica extremadamente rigurosa."
+        : "";
+
       const markdown = `<system_context>
 Estos datos financieros pertenecen a la empresa ${STATE.empresa.nombre || 'analizada'} y han sido procesados y estructurados automáticamente por FinTriage a partir de su libro diario contable bruto.
 </system_context>
@@ -37,7 +44,7 @@ Estos datos financieros pertenecen a la empresa ${STATE.empresa.nombre || 'anali
 <confidence_engine>
 - Trust Score: ${conf.trustScore || 0}/100 (${conf.confidenceLabel || 'No evaluado'})
 - Limitaciones del Análisis:
-${(conf.analysisLimitations || []).map(l => '  * ' + l).join('\n')}
+${(conf.analysisLimitations || []).map(l => '  * ' + l).join('\n')}${eicFlag}
 </confidence_engine>
 
 <actionable_findings>

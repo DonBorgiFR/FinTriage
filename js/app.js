@@ -647,6 +647,45 @@ function renderPreviewTable() {
 // ---- PASO 2: Contexto Contable ----
 document.getElementById('btn-goto-context').addEventListener('click', () => {
   document.getElementById('goto-context-bar').style.display = 'none';
+  
+  // Rehidratar campos del contexto si ya existen (resiliencia)
+  if (STATE.contextChecklist) {
+    const cc = STATE.contextChecklist;
+    if (document.getElementById('ctx-coveragePeriod')) document.getElementById('ctx-coveragePeriod').value = cc.coveragePeriod || 'complete';
+    if (document.getElementById('ctx-closeStatus')) document.getElementById('ctx-closeStatus').value = cc.closeStatus || 'final_close';
+    if (document.getElementById('ctx-externalReview')) document.getElementById('ctx-externalReview').value = cc.externalReview || 'none';
+    if (document.getElementById('ctx-bridgeAccounts')) document.getElementById('ctx-bridgeAccounts').value = cc.bridgeAccounts || 'none';
+    if (document.getElementById('ctx-reconciliationIssues')) document.getElementById('ctx-reconciliationIssues').value = cc.reconciliationIssues || 'none';
+    if (document.getElementById('ctx-publicDebtRisk')) document.getElementById('ctx-publicDebtRisk').value = cc.publicDebtRisk || 'none';
+    if (document.getElementById('ctx-cfoConfidence')) {
+      document.getElementById('ctx-cfoConfidence').value = cc.cfoConfidence !== undefined ? cc.cfoConfidence : 5;
+      document.getElementById('ctx-cfo-val').textContent = cc.cfoConfidence !== undefined ? cc.cfoConfidence : 5;
+    }
+    if (cc.distortions && Array.isArray(cc.distortions)) {
+      ['extraordinary_ops', 'high_capex', 'annual_costs', 'financing_event'].forEach(d => {
+        const el = document.getElementById(`ctx-dist-${d}`);
+        if (el) el.checked = cc.distortions.includes(d);
+      });
+    }
+    
+    // Perfil Empresarial Ampliado (Rehidratación)
+    if (document.getElementById('ctx-fechaConstitucion')) document.getElementById('ctx-fechaConstitucion').value = cc.fechaConstitucion || '';
+    if (document.getElementById('ctx-ccaaFiscal')) document.getElementById('ctx-ccaaFiscal').value = cc.ccaaFiscal || '';
+    if (document.getElementById('ctx-cuentasAuditadas')) {
+      document.getElementById('ctx-cuentasAuditadas').value = cc.cuentasAuditadas === true ? 'true' : (cc.cuentasAuditadas === false ? 'false' : '');
+    }
+    if (document.getElementById('ctx-numEmpleados')) document.getElementById('ctx-numEmpleados').value = cc.numEmpleados !== null && cc.numEmpleados !== undefined ? cc.numEmpleados : '';
+    if (document.getElementById('ctx-pctVentasExterior')) document.getElementById('ctx-pctVentasExterior').value = cc.pctVentasExterior !== null && cc.pctVentasExterior !== undefined ? cc.pctVentasExterior : '';
+    if (document.getElementById('ctx-trl')) document.getElementById('ctx-trl').value = cc.trl !== null && cc.trl !== undefined ? cc.trl : '';
+    
+    if (document.getElementById('ctx-tieneActividadID')) document.getElementById('ctx-tieneActividadID').checked = !!cc.tieneActividadID;
+    if (document.getElementById('ctx-quiereContratarDoctor')) document.getElementById('ctx-quiereContratarDoctor').checked = !!cc.quiereContratarDoctor;
+    if (document.getElementById('ctx-inversionExterior')) document.getElementById('ctx-inversionExterior').checked = !!cc.inversionExterior;
+    if (document.getElementById('ctx-tieneIP')) document.getElementById('ctx-tieneIP').checked = !!cc.tieneIP;
+    if (document.getElementById('ctx-eicConcedidoPrevio')) document.getElementById('ctx-eicConcedidoPrevio').checked = !!cc.eicConcedidoPrevio;
+    if (document.getElementById('ctx-proyectoVerde')) document.getElementById('ctx-proyectoVerde').checked = !!cc.proyectoVerde;
+  }
+
   const contextSec = document.getElementById('context-section');
   contextSec.style.display = 'block';
   contextSec.scrollIntoView({ behavior: 'smooth' });
@@ -662,6 +701,10 @@ document.getElementById('btn-goto-mapping').addEventListener('click', () => {
 
   const cfoConfidence = parseInt(document.getElementById('ctx-cfoConfidence').value) || 5;
 
+  // Cuentas auditadas
+  const auditVal = document.getElementById('ctx-cuentasAuditadas').value;
+  const cuentasAuditadas = auditVal === 'true' ? true : (auditVal === 'false' ? false : null);
+
   STATE.contextChecklist = {
     coveragePeriod: document.getElementById('ctx-coveragePeriod').value,
     closeStatus: document.getElementById('ctx-closeStatus').value,
@@ -670,7 +713,21 @@ document.getElementById('btn-goto-mapping').addEventListener('click', () => {
     reconciliationIssues: document.getElementById('ctx-reconciliationIssues').value,
     publicDebtRisk: document.getElementById('ctx-publicDebtRisk').value,
     cfoConfidence: cfoConfidence,
-    distortions: distortions
+    distortions: distortions,
+    
+    // Nuevas propiedades del Perfil Empresarial Ampliado
+    fechaConstitucion: document.getElementById('ctx-fechaConstitucion').value || null,
+    ccaaFiscal: document.getElementById('ctx-ccaaFiscal').value || null,
+    cuentasAuditadas: cuentasAuditadas,
+    numEmpleados: document.getElementById('ctx-numEmpleados').value !== '' ? parseInt(document.getElementById('ctx-numEmpleados').value) : null,
+    pctVentasExterior: document.getElementById('ctx-pctVentasExterior').value !== '' ? parseInt(document.getElementById('ctx-pctVentasExterior').value) : null,
+    trl: document.getElementById('ctx-trl').value !== '' ? parseInt(document.getElementById('ctx-trl').value) : null,
+    tieneActividadID: document.getElementById('ctx-tieneActividadID').checked,
+    quiereContratarDoctor: document.getElementById('ctx-quiereContratarDoctor').checked,
+    inversionExterior: document.getElementById('ctx-inversionExterior').checked,
+    tieneIP: document.getElementById('ctx-tieneIP').checked,
+    eicConcedidoPrevio: document.getElementById('ctx-eicConcedidoPrevio').checked,
+    proyectoVerde: document.getElementById('ctx-proyectoVerde').checked
   };
 
   logAudit('Contexto Contable definido', 'Confianza CFO: ' + cfoConfidence);

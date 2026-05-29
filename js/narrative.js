@@ -55,19 +55,44 @@ function buildNarrative(data, forecast, scoring) {
   }
 
   // Financiación Pública
-  txtEstrategico += `**APALANCAMIENTO PÚBLICO (NON-DILUTIVE)**\n`;
+  txtEstrategico += `**APALANCAMIENTO PÚBLICO Y SUBVENCIONES**\n`;
   if (scoring) {
     const enisaOk = scoring.enisa?.elegible;
     const cdtiOk = scoring.cdti?.elegible;
+    const icoOk = scoring.icoCrecimiento?.elegible === true;
+    const icoVerdeOk = scoring.icoVerde?.elegible === true;
+    const sgrOk = scoring.avalsSGR?.elegible === true;
+    const torresOk = scoring.torresQuevedo?.elegible === true;
+    const eicOk = scoring.eicAccelerator?.elegible === true;
     
+    // Core ENISA / CDTI
     if (enisaOk && cdtiOk) {
-      txtEstrategico += `La empresa presenta un perfil idóneo para plantear una estrategia de financiación mixta (ENISA + CDTI Neotec).`;
+      txtEstrategico += `La empresa presenta un perfil idóneo para plantear una estrategia de financiación mixta de base tecnológica (ENISA + CDTI Neotec). `;
     } else if (enisaOk) {
-      txtEstrategico += `El perfil patrimonial actual habilita a la empresa para solicitar ENISA Emprendedores, representando la opción menos dilutiva para extender el runway.`;
+      txtEstrategico += `El perfil patrimonial actual habilita a la empresa para solicitar ENISA Emprendedores, ideal para startups en etapas tempranas. `;
     } else if (cdtiOk) {
-      txtEstrategico += `El fuerte componente técnico abre la puerta a subvenciones competitivas como CDTI Neotec, que actuarían como un espaldarazo de caja puro.`;
+      txtEstrategico += `El fuerte componente técnico de investigación abre la puerta a subvenciones competitivas como CDTI Neotec. `;
     } else {
-      txtEstrategico += `La estructura financiera actual actúa como barrera para el acceso a instrumentos públicos directos. El paso previo necesario es una ronda de capital (equity) que fortalezca el patrimonio neto.`;
+      txtEstrategico += `La estructura de fondos propios actual sugiere la necesidad de fortalecer el capital social antes de concurrir a ENISA/CDTI. `;
+    }
+
+    // ICO y SGR
+    if (icoOk || icoVerdeOk || sgrOk) {
+      let lineas = [];
+      if (icoOk) lineas.push("ICO Crecimiento");
+      if (icoVerdeOk) lineas.push("ICO Verde");
+      if (sgrOk) lineas.push("aval SGR regional");
+      txtEstrategico += `Adicionalmente, se detecta viabilidad inmediata para vías de mediación y avales institucionales (${lineas.join(', ')}). `;
+    }
+
+    // Torres Quevedo
+    if (torresOk) {
+      txtEstrategico += `La intención de contratar doctores y el perfil I+D habilitan la ayuda del programa Torres Quevedo para subvencionar costes de personal de investigación. `;
+    }
+    
+    // EIC Accelerator (Matiz 2 & 3)
+    if (eicOk) {
+      txtEstrategico += `\n\n> ⚠️ **RESTRICCIÓN CRÍTICA EIC ACCELERATOR**: La empresa es potencialmente elegible para el EIC Accelerator de la Unión Europea (TRL ${STATE.contextChecklist?.trl || '5+'}). Recuerde que este valioso instrumento (hasta 2.5M€ subvención + hasta 10M€ equity) se concede **una sola vez por empresa** para el período 2021-2027. La preparación técnica y de balance del expediente debe planificarse con un rigor absoluto para no comprometer esta bala única.`;
     }
   }
 

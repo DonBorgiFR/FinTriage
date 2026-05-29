@@ -165,6 +165,304 @@ const CDTI_CRITERIOS = [
   }
 ];
 
+// ---- NUEVOS EVALUADORES DE FINANCIACIÓN EXTENDIDA (NUEVO) ----
+
+function _calcularAntiguedad(fechaStr) {
+  if (!fechaStr) return null;
+  const constituida = new Date(fechaStr);
+  const ahora = new Date('2026-05-29'); // Fecha actual en base al contexto del sistema
+  let anios = ahora.getFullYear() - constituida.getFullYear();
+  const mes = ahora.getMonth() - constituida.getMonth();
+  if (mes < 0 || (mes === 0 && ahora.getDate() < constituida.getDate())) {
+    anios--;
+  }
+  return Math.max(0, anios);
+}
+
+function scoreICOCrecimiento(data, context) {
+  const constituida = context.fechaConstitucion;
+  const antiguedad = _calcularAntiguedad(constituida);
+  const audit = context.cuentasAuditadas;
+  const trustScore = data.confidence?.trustScore || 0;
+  const activoNoCorriente = data.balance?.activoNoCorriente || 0;
+  const activoTotal = data.balance?.activoTotal || 1;
+  const ratioIntangibles = activoNoCorriente / activoTotal;
+  
+  // SGR elegible es proxy para el aval solidario
+  const sgrRes = scoreAvalsSGR(data, context);
+  const avalDisponible = sgrRes.elegible === true || sgrRes.elegible === 'probable';
+  
+  const cumpleBasicos = antiguedad !== null && antiguedad >= 4;
+  const cumpleGarantia = audit === true || avalDisponible;
+  const cumpleConfianza = trustScore >= 40;
+  
+  if (cumpleBasicos && cumpleGarantia && cumpleConfianza) {
+    return {
+      elegible: true,
+      motivo: `Cumple los criterios de antigüedad mínima (constituida hace ${antiguedad} años), dispone de garantía/auditoría y supera el Trust Score contable (Trust Score: ${trustScore}). Ratio de intangibles sobre activo: ${(ratioIntangibles*100).toFixed(1)}%.`,
+      accion: "Preparar el expediente digital en la plataforma de ICO Directo aportando las cuentas auditadas de los dos últimos ejercicios o el aval de la SGR."
+    };
+  } else if (antiguedad !== null && antiguedad >= 4 && audit === null) {
+    return {
+      elegible: 'probable',
+      motivo: `Tiene la antigüedad requerida (constituida hace ${antiguedad} años) pero no se ha indicado si dispone de cuentas auditadas de los 2 últimos ejercicios.`,
+      accion: "Confirmar en el perfil si la empresa tiene cuentas auditadas o tramitar el aval con la SGR regional para habilitar la línea."
+    };
+  } else {
+    let motivos = [];
+    let acciones = [];
+    
+    if (antiguedad === null) {
+      motivos.push("No se ha indicado la fecha de constitución.");
+      acciones.push("Indicar la fecha de constitución en el perfil cualitativo (Paso 2).");
+    } else if (antiguedad < 4) {
+      motivos.push(`La línea ICO Crecimiento requiere un mínimo de 4 años de antigüedad (constituida hace ${antiguedad} años).`);
+      acciones.push("Explorar líneas de financiación alternativas sin antigüedad mínima (como ENISA o avales SGR directos).");
+    }
+    
+    if (!cumpleGarantia) {
+      motivos.push("Se requiere disponer de cuentas anuales auditadas de los dos últimos ejercicios o un aval solidario SGR.");
+      acciones.push("Contactar con la SGR regional para solicitar un aval de reafianzamiento o iniciar el proceso de auditoría.");
+    }
+    
+    if (!cumpleConfianza) {
+      motivos.push(`El Trust Score contable (${trustScore}) es inferior al mínimo requerido (40) para esta línea.`);
+      acciones.push("Subsanar las anomalías contables críticas reportadas en el panel principal para elevar la calidad del dato.");
+    }
+    
+    return {
+      elegible: false,
+      motivo: motivos.join(" "),
+      accion: acciones.length > 0 ? acciones[0] : "Revisar los parámetros cualitativos de la empresa."
+    };
+  }
+}
+
+function scoreICOVerde(data, context) {
+  const esVerde = context.proyectoVerde === true;
+  const trustScore = data.confidence?.trustScore || 0;
+  const cumpleConfianza = trustScore >= 40;
+  
+  if (esVerde && cumpleConfianza) {
+    return {
+      elegible: true,
+      motivo: `Proyecto de transición verde / sostenible elegible. Cuenta con un nivel de confianza contable de ${trustScore} (mínimo requerido: 40).`,
+      accion: "Proceder a estructurar la memoria técnica del proyecto sostenible (eficiencia energética, economía circular, descarbonización) y solicitar mediación bancaria antes del 31 de agosto de 2026 (cierre de ventana)."
+    };
+  } else if (context.proyectoVerde === null || context.proyectoVerde === undefined) {
+    return {
+      elegible: 'probable',
+      motivo: "No se ha especificado si el plan de inversión contiene partidas de transición verde, eficiencia energética o sostenibilidad.",
+      accion: "Identificar si el proyecto incluye inversiones en placas solares, movilidad sostenible, eficiencia energética o economía circular para calificar."
+    };
+  } else {
+    if (!esVerde) {
+      return {
+        elegible: false,
+        motivo: "Línea no aplicable debido a la ausencia de inversiones sostenibles o verdes declaradas.",
+        accion: "Explorar la línea ordinaria ICO Empresas y Emprendedores para inversiones de carácter general."
+      };
+    }
+    return {
+      elegible: false,
+      motivo: `El Trust Score contable (${trustScore}) es inferior al mínimo requerido (40) para formalizar la línea de mediación.`,
+      accion: "Corregir los descuadres y anomalías contables en el libro diario para cumplir los estándares mínimos de solvencia bancaria."
+    };
+  }
+}
+
+function scoreAvalsSGR(data, context) {
+  const anomalies = data.anomalies || [];
+  const patrimonioNeto = data.balance?.patrimonioNeto || 0;
+  
+  const tieneCritica47 = anomalies.some(a => 
+    a.severity === 'critical' && 
+    (a.cuenta?.startsWith('47') || a.id === 'deuda_publica_alta')
+  );
+  
+  const tieneGrave551 = anomalies.some(a => {
+    const es551 = a.cuenta?.startsWith('551') || a.id?.includes('551');
+    if (!es551) return false;
+    if (a.severity === 'critical') return true;
+    if (a.detail && a.detail.includes('50.000')) return true;
+    return false;
+  });
+  
+  const patrimonioPositivo = patrimonioNeto > 0;
+  
+  const ccaa = context.ccaaFiscal || 'otras';
+  const sgrMap = {
+    cataluna: { nombre: 'Avalis de Catalunya SGR', aval: 'Avalis Catalunya' },
+    madrid: { nombre: 'Avalmadrid SGR', aval: 'Avalmadrid' },
+    pais_vasco: { nombre: 'Elkargi SGR', aval: 'Elkargi' },
+    valencia: { nombre: 'Afín SGR', aval: 'Afín Comunidad Valenciana' },
+    andalucia: { nombre: 'Garántia SGR', aval: 'Garántia Andalucía' },
+    galicia: { nombre: 'Afigal SGR / Sogarpo SGR', aval: 'Afigal / Sogarpo' },
+    otras: { nombre: 'la SGR regional correspondiente', aval: 'SGR regional' }
+  };
+  const sgr = sgrMap[ccaa] || sgrMap.otras;
+  
+  const elegible = !tieneCritica47 && !tieneGrave551 && patrimonioPositivo;
+  
+  if (elegible) {
+    return {
+      elegible: true,
+      motivo: `Potencial acceso a aval ${sgr.aval}. Patrimonio neto positivo (${_fmtEur(patrimonioNeto)}) y balance libre de incidencias fiscales críticas en deuda pública o cuentas con socios.`,
+      accion: `Presentar solicitud de aval ante ${sgr.nombre}. La SGR puede avalar hasta 1,1M€ con reafianzamiento CERSA (80%). Sin antigüedad mínima requerida.`
+    };
+  } else {
+    let motivos = [];
+    let acciones = [];
+    
+    if (!patrimonioPositivo) {
+      motivos.push(`Patrimonio neto negativo o nulo (${_fmtEur(patrimonioNeto)}), lo que sitúa a la empresa en situación de quiebra técnica teórica.`);
+      acciones.push("Realizar una aportación de socios o compensación de pérdidas para restablecer el patrimonio neto positivo.");
+    }
+    if (tieneCritica47) {
+      motivos.push("Se registran deudas tributarias o de Seguridad Social críticas sin aplazamiento formalizado (Grupo 47).");
+      acciones.push("Regularizar los atrasos tributarios u obtener un aplazamiento formalizado de Hacienda/SS antes de solicitar el aval.");
+    }
+    if (tieneGrave551) {
+      motivos.push("Se registran saldos deudores elevados y de alto riesgo fiscal en la cuenta corriente de socios (cta. 551 > 50.000€).");
+      acciones.push("Formalizar un contrato de préstamo mercantil a tipo legal por el saldo de la 551 o compensar la cuenta con fondos propios.");
+    }
+    
+    return {
+      elegible: false,
+      motivo: motivos.join(" "),
+      accion: acciones.length > 0 ? acciones[0] : "Corregir incidencias de balance y solvencia."
+    };
+  }
+}
+
+function scoreTorresQuevedo(data, context) {
+  const tieneID = context.tieneActividadID === true;
+  const quiereDoctor = context.quiereContratarDoctor === true;
+  
+  if (!tieneID || !quiereDoctor) {
+    return {
+      elegible: 'no_elegible',
+      motivo: "Ayuda inactiva. Requiere tener actividad formalizada de I+D y la intención de contratar investigadores con grado de Doctor.",
+      accion: "Declarar la actividad I+D y marcar la intención de contratación de doctores en el perfil cualitativo (Paso 2)."
+    };
+  }
+  
+  const pn = data.balance?.patrimonioNeto || 0;
+  const ingresos = data.totales?.ingresos || 0;
+  const empleados = context.numEmpleados || 0;
+  
+  const noQuiebra = pn > 0;
+  const conOperativa = ingresos > 0;
+  
+  if (!noQuiebra || !conOperativa) {
+    let motivos = [];
+    if (!noQuiebra) motivos.push("La empresa presenta fondos propios negativos (quiebra técnica teórica).");
+    if (!conOperativa) motivos.push("La empresa no registra ingresos operativos reales en el periodo.");
+    return {
+      elegible: false,
+      motivo: motivos.join(" "),
+      accion: "Restablecer el equilibrio financiero neto de la empresa antes de postular a convocatorias competitivas ministeriales."
+    };
+  }
+  
+  // Clasificación de tamaño Pyme UE
+  let tamaño = 'grande';
+  let intensidad = 50;
+  if (empleados < 50 && ingresos < 10000000) {
+    tamaño = 'pequeña';
+    intensidad = 70;
+  } else if (empleados < 250 && ingresos < 50000000) {
+    tamaño = 'mediana';
+    intensidad = 60;
+  }
+  
+  return {
+    elegible: true,
+    motivo: `Empresa clasificada como pyme '${tamaño}' (${empleados} empleados, facturación: ${_fmtEur(ingresos)}). Cobertura estimada: hasta el ${intensidad}% del coste de contratación (máx. 56.000 €/año por doctor durante 3 años).`,
+    accion: "Definir el proyecto de I+D+i y contactar con doctores candidatos para la próxima convocatoria ministerial (estimada para noviembre de 2026)."
+  };
+}
+
+function scoreEICAccelerator(data, context) {
+  const trl = context.trl || 0;
+  const empleados = context.numEmpleados || 0;
+  const ingresos = data.totales?.ingresos || 0;
+  const trustScore = data.confidence?.trustScore || 0;
+  const tieneIP = context.tieneIP === true;
+  
+  const esPymeUE = empleados < 250 && ingresos < 50000000;
+  const cumpleTRL = trl >= 5;
+  
+  if (!cumpleTRL || !esPymeUE) {
+    let motivos = [];
+    if (!cumpleTRL) motivos.push(`Nivel de madurez tecnológica bajo (TRL ${trl} registrado, requiere TRL >= 5).`);
+    if (!esPymeUE) motivos.push(`Supera los límites máximos de PYME de la Unión Europea (empleados: ${empleados}, facturación: ${_fmtEur(ingresos)}).`);
+    return {
+      elegible: 'no_elegible',
+      motivo: `Ayuda inactiva. ${motivos.join(" ")}`,
+      accion: "Avanzar en el desarrollo técnico (TRL 5 en adelante) para optar a este instrumento altamente disruptivo."
+    };
+  }
+  
+  if (context.eicConcedidoPrevio === true) {
+    return {
+      elegible: false,
+      motivo: "La empresa ya ha recibido financiación EIC Accelerator. Este instrumento europeo de alta financiación se concede una sola vez por empresa en el período de Horizonte Europa (2021–2027).",
+      accion: "Explorar otros instrumentos de Horizonte Europa alternativos, como EIC Transition o el STEP Scale-Up para fases posteriores de escalado internacional."
+    };
+  }
+  
+  const cumpleConfianza = trustScore >= 50;
+  
+  if (cumpleConfianza && tieneIP) {
+    return {
+      elegible: true,
+      motivo: `Califica como PYME de la UE con TRL ${trl} adecuado y propiedad intelectual (IP) protegida. Trust Score contable de ${trustScore} apto para procesos de due diligence internacional.`,
+      accion: "Preparar la propuesta corta (Fase 1) en la plataforma oficial del EIC Accelerator. Cuenta con 3 modalidades: Grant-only (hasta 2.5M€), Blended finance (2.5M€ + hasta 10M€ equity de EIC Fund) e Investment-only (hasta 10M€ equity)."
+    };
+  } else {
+    let motivos = [];
+    if (!tieneIP) motivos.push("No posee patentes o propiedad intelectual formalmente protegida (criterio de diferenciación muy valorado).");
+    if (!cumpleConfianza) motivos.push(`El Trust Score contable (${trustScore}) está en zona de riesgo para la debida diligencia de la Comisión Europea.`);
+    
+    return {
+      elegible: 'probable',
+      motivo: `Fuerte potencial de elegibilidad básica (TRL ${trl} y perfil pyme). Sin embargo, presenta barreras indicativas: ${motivos.join(" ")}`,
+      accion: "Estructurar la estrategia de patentes/propiedad intelectual y limpiar anomalías contables antes de iniciar la solicitud oficial."
+    };
+  }
+}
+
+function scoreMicroBank(data, context) {
+  const ingresos = data.totales?.ingresos || 0;
+  const empleados = context.numEmpleados;
+  
+  const cumpleFacturacion = ingresos < 2000000;
+  const cumpleEmpleados = empleados !== null ? empleados <= 10 : null;
+  
+  if (empleados === null) {
+    return {
+      elegible: 'probable',
+      motivo: "Posible candidato si la facturación anual es inferior a 2M€ y cuenta con menos de 10 empleados en plantilla (parámetros sin especificar).",
+      accion: "Completar la información de número de empleados en el perfil cualitativo para confirmar la elegibilidad de microcrédito."
+    };
+  }
+  
+  if (cumpleFacturacion && cumpleEmpleados) {
+    return {
+      elegible: true,
+      motivo: `Cumple los límites formales de microempresa (empleados: ${empleados} <= 10, facturación: ${_fmtEur(ingresos)} < 2M€).`,
+      accion: "Elaborar un plan de negocio simplificado. MicroBank ofrece microcréditos sin necesidad de garantías reales de hasta 25.000€ (personas físicas) o 30.000€ (personas jurídicas) basados en viabilidad técnica."
+    };
+  } else {
+    return {
+      elegible: false,
+      motivo: `Supera los límites establecidos de microempresa para esta línea específica de microcrédito social (empleados: ${empleados}, facturación: ${_fmtEur(ingresos)}).`,
+      accion: "Explorar las líneas ICO Empresas o avales SGR ordinarios en entidades de crédito colaboradoras."
+    };
+  }
+}
+
 /**
  * scoreFinanciacion(data, inp)
  * @description Ejecuta el motor de reglas sobre los datos contables combinados con los inputs manuales.
@@ -195,9 +493,21 @@ function scoreFinanciacion(data, inp = {}) {
 
     return { score, rawScore, penalty, elegible, criterios: results, alertas };
   }
+  
+  const context = STATE.contextChecklist || {};
+
   return {
     enisa: computePrograma(ENISA_CRITERIOS),
     cdti:  computePrograma(CDTI_CRITERIOS),
+    
+    // Nuevas líneas extendidas (Matiz 3 - ICO Verde incluido)
+    icoCrecimiento: scoreICOCrecimiento(data, context),
+    icoVerde: scoreICOVerde(data, context),
+    avalsSGR: scoreAvalsSGR(data, context),
+    torresQuevedo: scoreTorresQuevedo(data, context),
+    eicAccelerator: scoreEICAccelerator(data, context),
+    microBank: scoreMicroBank(data, context),
+    
     confidence: data.confidence
   };
 }
@@ -281,6 +591,49 @@ function _collectScoringInputs() {
   };
 }
 
+function _renderExtendedFinancingRow(nombre, icon, result, link) {
+  const { elegible, motivo, accion } = result;
+  
+  if (elegible === 'no_elegible') return ''; // No lo mostramos si no aplica en absoluto
+  
+  let badgeColor = 'var(--red)';
+  let badgeLabel = '❌ No elegible';
+  let badgeStyle = 'background: rgba(239, 68, 68, 0.1); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.25);';
+  
+  if (elegible === true) {
+    badgeColor = 'var(--green)';
+    badgeLabel = '✅ Elegible';
+    badgeStyle = 'background: rgba(16, 185, 129, 0.1); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.25);';
+  } else if (elegible === 'probable') {
+    badgeColor = 'var(--amber)';
+    badgeLabel = '⚠️ Probable';
+    badgeStyle = 'background: rgba(245, 158, 11, 0.1); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.25);';
+  }
+
+  return `
+    <div style="background: rgba(255,255,255,0.015); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 18px 20px; transition: var(--transition); display: flex; flex-direction: column; gap: 10px;" class="extended-row">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.4rem;">${icon}</span>
+          <span style="font-family: var(--font-display); font-size: 0.92rem; font-weight: 700; color: var(--text-primary);">${nombre}</span>
+        </div>
+        <span style="font-size: 0.68rem; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; ${badgeStyle}">${badgeLabel}</span>
+      </div>
+      <div style="font-size: 0.8rem; line-height: 1.5; color: var(--text-secondary);">
+        <strong>Diagnóstico:</strong> ${motivo}
+      </div>
+      <div style="font-size: 0.76rem; line-height: 1.5; color: var(--text-muted); background: rgba(0,0,0,0.15); padding: 10px 14px; border-radius: var(--radius-sm); border-left: 3px solid ${badgeColor};">
+        <strong>Acción recomendada:</strong> ${accion}
+      </div>
+      <div style="text-align: right; margin-top: 4px;">
+        <a href="${link}" target="_blank" rel="noopener noreferrer" style="font-size: 0.74rem; color: var(--cyan); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; transition: var(--transition);">
+          🔗 Ir a la Convocatoria Oficial →
+        </a>
+      </div>
+    </div>
+  `;
+}
+
 function _buildScoringHTML() {
   let scoring = STATE.scoringResult;
   if (!scoring) {
@@ -309,10 +662,40 @@ function _buildScoringHTML() {
     `;
   }
 
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:24px;">
-    ${_renderProgramaCard('ENISA Emprendedores', '🏦', scoring.enisa, 'var(--cyan)', 'Préstamo participativo hasta 300K€ · Ratio 1:1 capital propio')}
-    ${_renderProgramaCard('CDTI Neotec', '🔬', scoring.cdti, 'var(--purple)', 'Subvención + préstamo hasta 250K€ · Proyectos I+D de base tecnológica')}
-  </div>`;
+  // Renderizar las 6 nuevas líneas adicionales (Fase 1.5 - ICO Verde incluida)
+  const rows = [
+    _renderExtendedFinancingRow('ICO Crecimiento (Financiación Directa)', '🏦', scoring.icoCrecimiento, 'https://www.ico.es/web/ico/ico-crecimiento'),
+    _renderExtendedFinancingRow('ICO Verde (Proyectos Sostenibles)', '🟢', scoring.icoVerde, 'https://www.ico.es/web/ico/ico-crecimiento'),
+    _renderExtendedFinancingRow('Aval SGR Regional / Reafianzamiento CERSA', '🛡️', scoring.avalsSGR, 'https://www.cersa-sme.es/'),
+    _renderExtendedFinancingRow('Torres Quevedo (Contratación de Doctores)', '🎓', scoring.torresQuevedo, 'https://www.aei.gob.es/convocatorias/buscador-convocatorias/ayudas-contratos-torres-quevedo-2025'),
+    _renderExtendedFinancingRow('EIC Accelerator (Innovación Disruptiva Europea)', '🇪🇺', scoring.eicAccelerator, 'https://eic.ec.europa.eu/eic-funding-opportunities/eic-accelerator_en'),
+    _renderExtendedFinancingRow('MicroBank / Microcrédito de Viabilidad', '💼', scoring.microBank, 'https://www.microbank.com/es/productos/negocios-convenio.html')
+  ].filter(Boolean).join('');
+
+  const hasExtended = rows.trim().length > 0;
+
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:24px;margin-bottom:24px;">
+      ${_renderProgramaCard('ENISA Emprendedores', '🏦', scoring.enisa, 'var(--cyan)', 'Préstamo participativo hasta 300K€ · Ratio 1:1 capital propio')}
+      ${_renderProgramaCard('CDTI Neotec', '🔬', scoring.cdti, 'var(--purple)', 'Subvención + préstamo hasta 250K€ · Proyectos I+D de base tecnológica')}
+    </div>
+    
+    ${hasExtended ? `
+      <div class="card" style="margin-top: 24px;">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <span>🌐 Otras Líneas de Financiación Detectadas</span>
+          <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: none; font-weight: normal;">Líneas orientativas y compatibles</span>
+        </div>
+        <p style="font-size:0.83rem;color:var(--text-muted);margin-bottom:18px;">FinTriage ha evaluado de forma cruzada la consistencia de los apuntes de tu balance y tu perfil cualitativo frente a instrumentos financieros de ámbito autonómico, nacional y europeo.</p>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          ${rows}
+        </div>
+        <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--text-muted); line-height: 1.6;">
+          <strong>Nota de Compatibilidad y Acumulación:</strong> Las líneas ICO (incluyendo ICO Verde), SGR regionales y Torres Quevedo son compatibles y acumulables entre sí y con ENISA/CDTI, siempre que no financien el mismo concepto de gasto. El EIC Accelerator es incompatible con CDTI si el proyecto de I+D es idéntico, y solo puede concederse una vez por empresa en el período 2021–2027.
+        </div>
+      </div>
+    ` : ''}
+  `;
 }
 
 function _renderProgramaCard(nombre, icon, result, color, desc) {

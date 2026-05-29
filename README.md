@@ -2,7 +2,23 @@
 
 > **Versión Actual:** `v1.3.1` · Plataforma Local-First de Triage y Diagnóstico Financiero para Startups y Pymes.
 
+[![Demo en Vivo](https://img.shields.io/badge/Demo%20en%20Vivo-https%3A%2F%2Ffin--triage.vercel.app%2F-cyan?style=for-the-badge&logo=vercel&logoColor=white)](https://fin-triage.vercel.app/)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Borja%20Felix%20Rojas-blue?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/borjafelixrojas/)
+[![Licencia MIT](https://img.shields.io/badge/Licencia-MIT-green?style=for-the-badge)](LICENSE)
+
 **FinTriage** es una plataforma profesional de análisis, saneamiento y triage financiero client-side, diseñada especialmente para CFOs externos, consultores independientes, asesores y fundadores de startups. Esta herramienta automatiza la ingesta de libros contables del Plan General Contable (PGC) español, diagnosticando la consistencia de los apuntes, recalculando márgenes analíticos, proyectando escenarios de caja y ofreciendo un panel de control multicompañía para priorizar carteras enteras en tiempo real.
+
+---
+
+## Vista Previa de la Interfaz (Dark Glassmorphism UI)
+
+La aplicación implementa una estética de alta fidelidad inmersiva basada en **Dark Glassmorphism**, ofreciendo paneles interactivos fluidos y micro-animaciones reactivas sin sobrecargar el navegador.
+
+````carousel
+![1. Dashboard Analítico de EBITDA](assets/fintriage-dashboard-mockup.png)
+<!-- slide -->
+![2. Panel de Triage Multicompañía (Cartera)](assets/fintriage-portfolio-mockup.png)
+````
 
 ---
 
@@ -122,16 +138,21 @@ Sigue las preguntas interactivas en pantalla y en menos de 30 segundos tendrás 
 
 ---
 
-## 9. Roadmap Corto (Próximos Pasos)
+## 9. Próximos Grandes Hitos (Roadmap)
 
-1.  **Copiloto IA Financiero (Fase 10)**: Integración de un motor local de lenguaje o mediante API de alto rendimiento para interpretar la Ficha de Triage y redactar informes de Due Diligence e inversión completos de forma automatizada.
-2.  **Score Avanzado de Financiación Bancaria**: Incorporación de reglas de scoring basadas en el rating tradicional de entidades bancarias españolas (CIRBE y capacidad de servicio de la deuda).
-3.  **Conexión API Bancaria (PSD2)**: Módulo opcional de ingesta de movimientos bancarios en tiempo real para contrastar la conciliación de caja de forma ágil sin depender exclusivamente del diario.
+La arquitectura de **FinTriage** ya consolida con éxito las **Fases 1 a 9** de su desarrollo estratégico (incluyendo el motor reactivo por Deep Proxies, análisis dinámico del PGC, scoring público ENISA/CDTI, cockpit de supervivencia de caja a 100 días y la tabla de priorización de cartera multicompañía). Puedes consultar el historial técnico detallado de cada fase en el [CHANGELOG.md](CHANGELOG.md).
+
+De cara a las próximas actualizaciones, el roadmap contempla:
+
+1. **Copiloto IA Financiero (Integración LLM)**: Incorporación de un motor de lenguaje local o mediante API de alta seguridad para interpretar automáticamente la Ficha de Triage y generar informes completos de due diligence, argumentarios de inversión y reportes analíticos con un solo clic.
+2. **Score Avanzado de Financiación Bancaria**: Incorporación de reglas de scoring basadas en el rating de solvencia y análisis de capacidad de servicio de la deuda bancaria española (CIRBE).
+3. **Módulo de Conciliación Bancaria Automática (PSD2)**: Conexión segura e ingesta de movimientos bancarios en tiempo real para contrastar y verificar la conciliación de caja frente al diario.
+
 ---
 
 ## 10. Identidad Visual y Logotipos
 
-Los recursos gráficos oficiales de FinTriage están disponibles en la carpeta [assets/](file:///c:/Users/borja/OneDrive/Documentos/Antigravity/APTKI/workstation/assets/) e incluyen las siguientes variantes:
+Los recursos gráficos oficiales de FinTriage están disponibles en la carpeta [assets/](assets/) e incluyen las siguientes variantes:
 *   `logo-wordmark.svg`: Wordmark tipográfico limpio y minimalista (diseño recomendado).
 *   `logo-dark.svg`: Logotipo optimizado para interfaces oscuras (dark mode).
 *   `logo-light.svg`: Logotipo optimizado para interfaces claras (light mode).

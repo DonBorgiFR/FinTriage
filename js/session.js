@@ -96,7 +96,34 @@ function loadSingleSessionData(data, filename) {
   STATE.approvedAccruals = data.approvedAccruals || [];
   STATE.forecastScenario = data.forecastScenario || 'base';
   STATE.auditTrail = data.auditTrail || [];
-  STATE.contextChecklist = data.contextChecklist || null;
+  
+  // Inicialización defensiva de contextChecklist para sesiones antiguas (Matiz 1)
+  const cc = data.contextChecklist || {};
+  STATE.contextChecklist = {
+    coveragePeriod: cc.coveragePeriod || 'complete',
+    closeStatus: cc.closeStatus || 'final_close',
+    externalReview: cc.externalReview || 'none',
+    bridgeAccounts: cc.bridgeAccounts || 'none',
+    reconciliationIssues: cc.reconciliationIssues || 'none',
+    publicDebtRisk: cc.publicDebtRisk || 'none',
+    cfoConfidence: cc.cfoConfidence !== undefined ? cc.cfoConfidence : 5,
+    distortions: cc.distortions || [],
+    
+    // Perfil Empresarial Ampliado defensivo
+    fechaConstitucion: cc.fechaConstitucion || null,
+    ccaaFiscal: cc.ccaaFiscal || null,
+    cuentasAuditadas: cc.cuentasAuditadas !== undefined ? cc.cuentasAuditadas : null,
+    numEmpleados: cc.numEmpleados !== undefined ? cc.numEmpleados : null,
+    pctVentasExterior: cc.pctVentasExterior !== undefined ? cc.pctVentasExterior : null,
+    trl: cc.trl !== undefined ? cc.trl : null,
+    tieneActividadID: cc.tieneActividadID !== undefined ? cc.tieneActividadID : false,
+    quiereContratarDoctor: cc.quiereContratarDoctor !== undefined ? cc.quiereContratarDoctor : false,
+    inversionExterior: cc.inversionExterior !== undefined ? cc.inversionExterior : false,
+    tieneIP: cc.tieneIP !== undefined ? cc.tieneIP : false,
+    eicConcedidoPrevio: cc.eicConcedidoPrevio !== undefined ? cc.eicConcedidoPrevio : false,
+    proyectoVerde: cc.proyectoVerde !== undefined ? cc.proyectoVerde : false
+  };
+
   STATE.defensaPlanChoqueChecked = data.defensaPlanChoqueChecked || [];
   STATE.defensaSimulacionInputs = data.defensaSimulacionInputs || null;
   STATE.defensaIntensidad = data.defensaIntensidad || 'defensivo';
