@@ -163,9 +163,9 @@ function navigate(sectionId, onComplete) {
   const exportSep = document.getElementById('export-sep');
   
   if (STATE.analysisResult && (sectionId === 'dashboard' || sectionId === 'forecast' || sectionId === 'scoring')) {
-    if (btnExportPdf) btnExportPdf.style.display = 'block';
-    if (btnExportExcel) btnExportExcel.style.display = 'block';
-    if (btnExportAgentic) btnExportAgentic.style.display = 'block';
+    if (btnExportPdf) btnExportPdf.style.display = 'inline-flex';
+    if (btnExportExcel) btnExportExcel.style.display = 'inline-flex';
+    if (btnExportAgentic) btnExportAgentic.style.display = 'inline-flex';
     if (exportSep) exportSep.style.display = 'block';
   } else {
     if (btnExportPdf) btnExportPdf.style.display = 'none';
